@@ -23,6 +23,7 @@ import { Separator } from './ui/separator';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from './ui/dropdown-menu';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
 import { useProjects, type Project, type ProjectMember } from '../contexts/ProjectContext';
+import EditProjectDialog from './EditProjectDialog';
 
 interface ProjectSettingsProps {
   projectId: string;
@@ -39,6 +40,7 @@ export default function ProjectSettings({ projectId, onClose }: ProjectSettingsP
     updateMemberRole,
     updateMemberPermissions,
     canManageMembers,
+    canEditProject,
     getProjectMember
   } = useProjects();
 
@@ -46,10 +48,16 @@ export default function ProjectSettings({ projectId, onClose }: ProjectSettingsP
   const [newMemberEmail, setNewMemberEmail] = useState('');
   const [newMemberRole, setNewMemberRole] = useState<ProjectMember['role']>('developer');
   const [editingPermissions, setEditingPermissions] = useState<string | null>(null);
+  const [showEditProject, setShowEditProject] = useState(false);
 
   const project = projects.find(p => p.id === projectId);
   const canManage = canManageMembers(projectId);
+  const canEdit = canEditProject(projectId);
   const currentMember = getProjectMember(projectId);
+
+  const handleProjectDeleted = () => {
+    onClose();
+  };
 
   if (!project || !currentUser) {
     return null;
@@ -355,13 +363,26 @@ export default function ProjectSettings({ projectId, onClose }: ProjectSettingsP
       {/* Project Settings */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Settings className="w-5 h-5" />
-            프로젝트 설정
-          </CardTitle>
-          <CardDescription>
-            프로젝트의 기본 설정을 관리합니다.
-          </CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <Settings className="w-5 h-5" />
+                프로젝트 설정
+              </CardTitle>
+              <CardDescription>
+                프로젝트의 기본 설정을 관리합니다.
+              </CardDescription>
+            </div>
+            {canEdit && (
+              <Button
+                variant="outline"
+                onClick={() => setShowEditProject(true)}
+              >
+                <Edit className="w-4 h-4 mr-2" />
+                프로젝트 편집
+              </Button>
+            )}
+          </div>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
@@ -450,6 +471,14 @@ export default function ProjectSettings({ projectId, onClose }: ProjectSettingsP
           </div>
         </CardContent>
       </Card>
+
+      {/* Edit Project Dialog */}
+      <EditProjectDialog
+        open={showEditProject}
+        onOpenChange={setShowEditProject}
+        project={project}
+        onProjectDeleted={handleProjectDeleted}
+      />
     </div>
   );
 }

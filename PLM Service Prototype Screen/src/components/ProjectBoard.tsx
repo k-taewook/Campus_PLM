@@ -76,7 +76,7 @@ export default function ProjectBoard({ projectId, onBack }: ProjectBoardProps) {
   const filteredTasks = tasks.filter(task => {
     const matchesSearch = task.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
                          task.description.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesAssignee = assigneeFilter === 'all' || task.assigneeId === assigneeFilter;
+    const matchesAssignee = assigneeFilter === 'all' || task.assigneeIds.includes(assigneeFilter);
     const matchesPriority = priorityFilter === 'all' || task.priority === priorityFilter;
     return matchesSearch && matchesAssignee && matchesPriority;
   });
@@ -144,7 +144,7 @@ export default function ProjectBoard({ projectId, onBack }: ProjectBoardProps) {
   };
 
   const TaskCard = ({ task }: { task: Task }) => {
-    const assignee = users.find(u => u.id === task.assigneeId);
+    const assignees = users.filter(u => task.assigneeIds.includes(u.id));
     const reporter = users.find(u => u.id === task.reporterId);
     const daysUntil = task.dueDate ? getDaysUntilDeadline(task.dueDate) : null;
     const canEdit = canEditTask(task.id);
@@ -212,12 +212,21 @@ export default function ProjectBoard({ projectId, onBack }: ProjectBoardProps) {
             {/* Bottom info */}
             <div className="flex items-center justify-between text-xs">
               <div className="flex items-center gap-2">
-                {assignee && (
-                  <Avatar className="w-5 h-5">
-                    <AvatarFallback className="bg-blue-100 text-blue-600 text-xs">
-                      {assignee.name.charAt(0)}
-                    </AvatarFallback>
-                  </Avatar>
+                {assignees.length > 0 && (
+                  <div className="flex -space-x-1">
+                    {assignees.slice(0, 3).map(assignee => (
+                      <Avatar key={assignee.id} className="w-5 h-5 border border-white">
+                        <AvatarFallback className="bg-blue-100 text-blue-600 text-xs">
+                          {assignee.name.charAt(0)}
+                        </AvatarFallback>
+                      </Avatar>
+                    ))}
+                    {assignees.length > 3 && (
+                      <div className="w-5 h-5 bg-gray-100 rounded-full border border-white flex items-center justify-center">
+                        <span className="text-xs text-gray-600">+{assignees.length - 3}</span>
+                      </div>
+                    )}
+                  </div>
                 )}
                 {task.comments.length > 0 && (
                   <div className="flex items-center gap-1 text-gray-500">
@@ -420,7 +429,7 @@ export default function ProjectBoard({ projectId, onBack }: ProjectBoardProps) {
         <TabsContent value="list" className="flex-1 overflow-auto custom-scrollbar">
           <div className="space-y-4 p-6">
             {filteredTasks.map(task => {
-              const assignee = users.find(u => u.id === task.assigneeId);
+              const assignees = users.filter(u => task.assigneeIds.includes(u.id));
               const daysUntil = task.dueDate ? getDaysUntilDeadline(task.dueDate) : null;
               
               return (
@@ -439,14 +448,28 @@ export default function ProjectBoard({ projectId, onBack }: ProjectBoardProps) {
                         </div>
                         <p className="text-sm text-gray-600 mb-2 line-clamp-1">{task.description}</p>
                         <div className="flex items-center gap-4 text-sm text-gray-500">
-                          {assignee && (
-                            <div className="flex items-center gap-1">
-                              <Avatar className="w-4 h-4">
-                                <AvatarFallback className="bg-blue-100 text-blue-600 text-xs">
-                                  {assignee.name.charAt(0)}
-                                </AvatarFallback>
-                              </Avatar>
-                              <span>{assignee.name}</span>
+                          {assignees.length > 0 && (
+                            <div className="flex items-center gap-2">
+                              <div className="flex -space-x-1">
+                                {assignees.slice(0, 2).map(assignee => (
+                                  <Avatar key={assignee.id} className="w-4 h-4 border border-white">
+                                    <AvatarFallback className="bg-blue-100 text-blue-600 text-xs">
+                                      {assignee.name.charAt(0)}
+                                    </AvatarFallback>
+                                  </Avatar>
+                                ))}
+                                {assignees.length > 2 && (
+                                  <div className="w-4 h-4 bg-gray-100 rounded-full border border-white flex items-center justify-center">
+                                    <span className="text-xs text-gray-600">+{assignees.length - 2}</span>
+                                  </div>
+                                )}
+                              </div>
+                              <span className="text-xs">
+                                {assignees.length === 1 
+                                  ? assignees[0].name 
+                                  : `${assignees.length}명`
+                                }
+                              </span>
                             </div>
                           )}
                           {task.dueDate && (

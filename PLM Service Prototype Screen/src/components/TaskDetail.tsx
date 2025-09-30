@@ -28,6 +28,7 @@ import { Progress } from './ui/progress';
 import { Label } from './ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Separator } from './ui/separator';
+import { Checkbox } from './ui/checkbox';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from './ui/dropdown-menu';
 import { useProjects, type Task, type Attachment } from '../contexts/ProjectContext';
 
@@ -72,7 +73,7 @@ export default function TaskDetail({ taskId, onBack }: TaskDetailProps) {
     );
   }
 
-  const assignee = users.find(u => u.id === task.assigneeId);
+  const assignees = users.filter(u => task.assigneeIds.includes(u.id));
   const reporter = users.find(u => u.id === task.reporterId);
   const canEdit = canEditTask(taskId);
 
@@ -82,7 +83,7 @@ export default function TaskDetail({ taskId, onBack }: TaskDetailProps) {
       description: task.description,
       status: task.status,
       priority: task.priority,
-      assigneeId: task.assigneeId,
+      assigneeIds: task.assigneeIds,
       estimatedHours: task.estimatedHours,
       startDate: task.startDate,
       dueDate: task.dueDate
@@ -486,30 +487,96 @@ export default function TaskDetail({ taskId, onBack }: TaskDetailProps) {
                 <div>
                   <Label>담당자</Label>
                   {isEditing ? (
-                    <Select value={editData.assigneeId || ''} onValueChange={(value) => setEditData({ ...editData, assigneeId: value || undefined })}>
-                      <SelectTrigger className="mt-1">
-                        <SelectValue placeholder="담당자 선택" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {project.members.map(member => {
-                          const user = users.find(u => u.id === member.userId);
-                          return user ? (
-                            <SelectItem key={user.id} value={user.id}>{user.name}</SelectItem>
-                          ) : null;
-                        })}
-                      </SelectContent>
-                    </Select>
+                    <div className="mt-2 space-y-3">
+                      {/* Selected Assignees */}
+                      {editData.assigneeIds && editData.assigneeIds.length > 0 && (
+                        <div>
+                          <p className="text-sm text-gray-600 mb-2">선택된 담당자 ({editData.assigneeIds.length}명)</p>
+                          <div className="flex flex-wrap gap-2">
+                            {editData.assigneeIds.map(assigneeId => {
+                              const assignee = users.find(u => u.id === assigneeId);
+                              if (!assignee) return null;
+                              return (
+                                <Badge key={assigneeId} variant="secondary" className="flex items-center gap-2">
+                                  <Avatar className="w-4 h-4">
+                                    <AvatarFallback className="bg-blue-100 text-blue-600 text-xs">
+                                      {assignee.name.charAt(0)}
+                                    </AvatarFallback>
+                                  </Avatar>
+                                  {assignee.name}
+                                  <X 
+                                    className="w-3 h-3 cursor-pointer hover:text-red-600" 
+                                    onClick={() => {
+                                      const newAssigneeIds = editData.assigneeIds?.filter(id => id !== assigneeId) || [];
+                                      setEditData({ ...editData, assigneeIds: newAssigneeIds });
+                                    }}
+                                  />
+                                </Badge>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Available Team Members */}
+                      <div className="border rounded-lg p-3 max-h-32 overflow-y-auto">
+                        <p className="text-sm text-gray-600 mb-2">사용 가능한 팀원</p>
+                        <div className="space-y-2">
+                          {project.members.map(member => {
+                            const user = users.find(u => u.id === member.userId);
+                            if (!user) return null;
+                            
+                            const isSelected = editData.assigneeIds?.includes(user.id) || false;
+                            
+                            return (
+                              <div key={user.id} className="flex items-center space-x-2">
+                                <Checkbox 
+                                  id={`edit-assignee-${user.id}`}
+                                  checked={isSelected}
+                                  onCheckedChange={() => {
+                                    const currentAssignees = editData.assigneeIds || [];
+                                    if (isSelected) {
+                                      setEditData({ 
+                                        ...editData, 
+                                        assigneeIds: currentAssignees.filter(id => id !== user.id) 
+                                      });
+                                    } else {
+                                      setEditData({ 
+                                        ...editData, 
+                                        assigneeIds: [...currentAssignees, user.id] 
+                                      });
+                                    }
+                                  }}
+                                />
+                                <div className="flex items-center gap-2 flex-1">
+                                  <Avatar className="w-5 h-5">
+                                    <AvatarFallback className="bg-blue-100 text-blue-600 text-xs">
+                                      {user.name.charAt(0)}
+                                    </AvatarFallback>
+                                  </Avatar>
+                                  <span className="text-sm">{user.name}</span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
                   ) : (
-                    <div className="mt-1 flex items-center gap-2">
-                      {assignee ? (
-                        <>
-                          <Avatar className="w-6 h-6">
-                            <AvatarFallback className="bg-blue-100 text-blue-600 text-xs">
-                              {assignee.name.charAt(0)}
-                            </AvatarFallback>
-                          </Avatar>
-                          <span className="text-sm">{assignee.name}</span>
-                        </>
+                    <div className="mt-1">
+                      {assignees.length > 0 ? (
+                        <div className="space-y-2">
+                          {assignees.map(assignee => (
+                            <div key={assignee.id} className="flex items-center gap-2">
+                              <Avatar className="w-6 h-6">
+                                <AvatarFallback className="bg-blue-100 text-blue-600 text-xs">
+                                  {assignee.name.charAt(0)}
+                                </AvatarFallback>
+                              </Avatar>
+                              <span className="text-sm">{assignee.name}</span>
+                            </div>
+                          ))}
+                        </div>
                       ) : (
                         <span className="text-sm text-gray-500">할당되지 않음</span>
                       )}

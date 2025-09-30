@@ -12,7 +12,11 @@ import {
   Target,
   BarChart3,
   Filter,
-  Search
+  Search,
+  MoreHorizontal,
+  Settings,
+  Edit,
+  FolderKanban
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
@@ -22,7 +26,10 @@ import { Avatar, AvatarFallback } from './ui/avatar';
 import { Progress } from './ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from './ui/dropdown-menu';
 import { useProjects, type Project, type Task } from '../contexts/ProjectContext';
+import EditProjectDialog from './EditProjectDialog';
 
 interface ProjectDashboardProps {
   onProjectSelect: (projectId: string) => void;
@@ -37,12 +44,15 @@ export default function ProjectDashboard({ onProjectSelect, onCreateProject }: P
     getAssignedTasks, 
     getUpcomingDeadlines,
     getProjectProgress,
+    canEditProject,
     activities
   } = useProjects();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [priorityFilter, setPriorityFilter] = useState('all');
+  const [editingProject, setEditingProject] = useState<Project | null>(null);
+  const [showEditDialog, setShowEditDialog] = useState(false);
 
   const myProjects = getMyProjects();
   const assignedTasks = getAssignedTasks();
@@ -118,14 +128,18 @@ export default function ProjectDashboard({ onProjectSelect, onCreateProject }: P
   };
 
   // Calculate statistics
+  const activeProjectsList = myProjects.filter(p => p.status === 'active');
+  const completedTasksList = assignedTasks.filter(t => t.status === 'done');
+  const overdueTasksList = assignedTasks.filter(t => 
+    t.dueDate && new Date(t.dueDate) < new Date() && t.status !== 'done'
+  );
+
   const stats = {
     totalProjects: myProjects.length,
-    activeProjects: myProjects.filter(p => p.status === 'active').length,
+    activeProjects: activeProjectsList.length,
     totalTasks: assignedTasks.length,
-    completedTasks: assignedTasks.filter(t => t.status === 'done').length,
-    overdueTasks: assignedTasks.filter(t => 
-      t.dueDate && new Date(t.dueDate) < new Date() && t.status !== 'done'
-    ).length,
+    completedTasks: completedTasksList.length,
+    overdueTasks: overdueTasksList.length,
     upcomingDeadlines: upcomingDeadlines.length
   };
 
@@ -145,79 +159,228 @@ export default function ProjectDashboard({ onProjectSelect, onCreateProject }: P
         </div>
 
         {/* Quick Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-6 gap-6 mb-8">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="flex items-center gap-2 text-sm">
-                <BarChart3 className="w-4 h-4 text-blue-600" />
-                총 프로젝트
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-blue-600">{stats.totalProjects}</div>
-            </CardContent>
-          </Card>
+        <TooltipProvider>
+          <div className="grid grid-cols-1 md:grid-cols-6 gap-6 mb-8">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Card className="hover:shadow-md transition-shadow cursor-help">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="flex items-center gap-2 text-sm">
+                      <BarChart3 className="w-4 h-4 text-blue-600" />
+                      총 프로젝트
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold text-blue-600">{stats.totalProjects}</div>
+                    {myProjects.length > 0 && (
+                      <div className="text-xs text-gray-500 mt-1 truncate">
+                        {myProjects.slice(0, 2).map(p => p.name).join(', ')}
+                        {myProjects.length > 2 && ' 외 ' + (myProjects.length - 2) + '개'}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </TooltipTrigger>
+              <TooltipContent className="max-w-xs">
+                <div className="space-y-1">
+                  <p className="font-semibold">내 프로젝트 ({myProjects.length}개)</p>
+                  {myProjects.length > 0 ? (
+                    myProjects.map(project => (
+                      <p key={project.id} className="text-sm">• {project.name}</p>
+                    ))
+                  ) : (
+                    <p className="text-sm">참여 중인 프로젝트가 없습니다.</p>
+                  )}
+                </div>
+              </TooltipContent>
+            </Tooltip>
 
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="flex items-center gap-2 text-sm">
-                <PlayCircle className="w-4 h-4 text-green-600" />
-                진행 중
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-green-600">{stats.activeProjects}</div>
-            </CardContent>
-          </Card>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Card className="hover:shadow-md transition-shadow cursor-help">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="flex items-center gap-2 text-sm">
+                      <PlayCircle className="w-4 h-4 text-green-600" />
+                      진행 중
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold text-green-600">{stats.activeProjects}</div>
+                    {activeProjectsList.length > 0 && (
+                      <div className="text-xs text-gray-500 mt-1 truncate">
+                        {activeProjectsList.slice(0, 2).map(p => p.name).join(', ')}
+                        {activeProjectsList.length > 2 && ' 외 ' + (activeProjectsList.length - 2) + '개'}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </TooltipTrigger>
+              <TooltipContent className="max-w-xs">
+                <div className="space-y-1">
+                  <p className="font-semibold">진행 중인 프로젝트 ({activeProjectsList.length}개)</p>
+                  {activeProjectsList.length > 0 ? (
+                    activeProjectsList.map(project => (
+                      <p key={project.id} className="text-sm">• {project.name}</p>
+                    ))
+                  ) : (
+                    <p className="text-sm">진행 중인 프로젝트가 없습니다.</p>
+                  )}
+                </div>
+              </TooltipContent>
+            </Tooltip>
 
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="flex items-center gap-2 text-sm">
-                <Target className="w-4 h-4 text-purple-600" />
-                할당된 태스크
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-purple-600">{stats.totalTasks}</div>
-            </CardContent>
-          </Card>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Card className="hover:shadow-md transition-shadow cursor-help">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="flex items-center gap-2 text-sm">
+                      <Target className="w-4 h-4 text-purple-600" />
+                      할당된 태스크
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold text-purple-600">{stats.totalTasks}</div>
+                    {assignedTasks.length > 0 && (
+                      <div className="text-xs text-gray-500 mt-1 truncate">
+                        {assignedTasks.slice(0, 2).map(t => t.title).join(', ')}
+                        {assignedTasks.length > 2 && ' 외 ' + (assignedTasks.length - 2) + '개'}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </TooltipTrigger>
+              <TooltipContent className="max-w-xs">
+                <div className="space-y-1">
+                  <p className="font-semibold">할당된 태스크 ({assignedTasks.length}개)</p>
+                  {assignedTasks.length > 0 ? (
+                    assignedTasks.map(task => (
+                      <p key={task.id} className="text-sm">• {task.title}</p>
+                    ))
+                  ) : (
+                    <p className="text-sm">할당된 태스크가 없습니다.</p>
+                  )}
+                </div>
+              </TooltipContent>
+            </Tooltip>
 
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="flex items-center gap-2 text-sm">
-                <CheckCircle className="w-4 h-4 text-blue-600" />
-                완료된 태스크
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-blue-600">{stats.completedTasks}</div>
-            </CardContent>
-          </Card>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Card className="hover:shadow-md transition-shadow cursor-help">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="flex items-center gap-2 text-sm">
+                      <CheckCircle className="w-4 h-4 text-blue-600" />
+                      완료된 태스크
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold text-blue-600">{stats.completedTasks}</div>
+                    {completedTasksList.length > 0 && (
+                      <div className="text-xs text-gray-500 mt-1 truncate">
+                        {completedTasksList.slice(0, 2).map(t => t.title).join(', ')}
+                        {completedTasksList.length > 2 && ' 외 ' + (completedTasksList.length - 2) + '개'}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </TooltipTrigger>
+              <TooltipContent className="max-w-xs">
+                <div className="space-y-1">
+                  <p className="font-semibold">완료된 태스크 ({completedTasksList.length}개)</p>
+                  {completedTasksList.length > 0 ? (
+                    completedTasksList.map(task => (
+                      <p key={task.id} className="text-sm">• {task.title}</p>
+                    ))
+                  ) : (
+                    <p className="text-sm">완료된 태스크가 없습니다.</p>
+                  )}
+                </div>
+              </TooltipContent>
+            </Tooltip>
 
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="flex items-center gap-2 text-sm">
-                <AlertTriangle className="w-4 h-4 text-red-600" />
-                지연된 태스크
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-red-600">{stats.overdueTasks}</div>
-            </CardContent>
-          </Card>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Card className="hover:shadow-md transition-shadow cursor-help">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="flex items-center gap-2 text-sm">
+                      <AlertTriangle className="w-4 h-4 text-red-600" />
+                      지연된 태스크
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold text-red-600">{stats.overdueTasks}</div>
+                    {overdueTasksList.length > 0 && (
+                      <div className="text-xs text-gray-500 mt-1 truncate">
+                        {overdueTasksList.slice(0, 2).map(t => t.title).join(', ')}
+                        {overdueTasksList.length > 2 && ' 외 ' + (overdueTasksList.length - 2) + '개'}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </TooltipTrigger>
+              <TooltipContent className="max-w-xs">
+                <div className="space-y-1">
+                  <p className="font-semibold">지연된 태스크 ({overdueTasksList.length}개)</p>
+                  {overdueTasksList.length > 0 ? (
+                    overdueTasksList.map(task => (
+                      <p key={task.id} className="text-sm text-red-600">
+                        • {task.title} 
+                        {task.dueDate && (
+                          <span className="text-xs"> (마감: {formatDate(task.dueDate)})</span>
+                        )}
+                      </p>
+                    ))
+                  ) : (
+                    <p className="text-sm">지연된 태스크가 없습니다.</p>
+                  )}
+                </div>
+              </TooltipContent>
+            </Tooltip>
 
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="flex items-center gap-2 text-sm">
-                <Clock className="w-4 h-4 text-orange-600" />
-                임박한 마감일
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-orange-600">{stats.upcomingDeadlines}</div>
-            </CardContent>
-          </Card>
-        </div>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Card className="hover:shadow-md transition-shadow cursor-help">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="flex items-center gap-2 text-sm">
+                      <Clock className="w-4 h-4 text-orange-600" />
+                      임박한 마감일
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold text-orange-600">{stats.upcomingDeadlines}</div>
+                    {upcomingDeadlines.length > 0 && (
+                      <div className="text-xs text-gray-500 mt-1 truncate">
+                        {upcomingDeadlines.slice(0, 2).map(t => t.title).join(', ')}
+                        {upcomingDeadlines.length > 2 && ' 외 ' + (upcomingDeadlines.length - 2) + '개'}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </TooltipTrigger>
+              <TooltipContent className="max-w-xs">
+                <div className="space-y-1">
+                  <p className="font-semibold">임박한 마감일 ({upcomingDeadlines.length}개)</p>
+                  {upcomingDeadlines.length > 0 ? (
+                    upcomingDeadlines.map(task => {
+                      const daysUntil = task.dueDate ? getDaysUntilDeadline(task.dueDate) : null;
+                      return (
+                        <p key={task.id} className="text-sm text-orange-600">
+                          • {task.title}
+                          {task.dueDate && daysUntil !== null && (
+                            <span className="text-xs">
+                              {' '}({daysUntil === 0 ? '오늘' : daysUntil === 1 ? '내일' : `${daysUntil}일 후`})
+                            </span>
+                          )}
+                        </p>
+                      );
+                    })
+                  ) : (
+                    <p className="text-sm">임박한 마감일이 없습니다.</p>
+                  )}
+                </div>
+              </TooltipContent>
+            </Tooltip>
+          </div>
+        </TooltipProvider>
 
         <Tabs defaultValue="projects" className="space-y-6">
           <TabsList>
@@ -385,7 +548,7 @@ export default function ProjectDashboard({ onProjectSelect, onCreateProject }: P
               <div className="space-y-4">
                 {filteredTasks.map(task => {
                   const project = myProjects.find(p => p.id === task.projectId);
-                  const assignee = users.find(u => u.id === task.assigneeId);
+                  const assignees = users.filter(u => task.assigneeIds.includes(u.id));
                   const daysUntil = task.dueDate ? getDaysUntilDeadline(task.dueDate) : null;
                   
                   return (
@@ -407,14 +570,23 @@ export default function ProjectDashboard({ onProjectSelect, onCreateProject }: P
                             </p>
                             <div className="flex items-center gap-6 text-sm text-gray-500">
                               <span>{project?.name} ({project?.key})</span>
-                              {assignee && (
+                              {assignees.length > 0 && (
                                 <div className="flex items-center gap-1">
-                                  <Avatar className="w-4 h-4">
-                                    <AvatarFallback className="bg-blue-100 text-blue-600 text-xs">
-                                      {assignee.name.charAt(0)}
-                                    </AvatarFallback>
-                                  </Avatar>
-                                  <span>{assignee.name}</span>
+                                  <div className="flex -space-x-1">
+                                    {assignees.slice(0, 3).map(assignee => (
+                                      <Avatar key={assignee.id} className="w-4 h-4 border border-white">
+                                        <AvatarFallback className="bg-blue-100 text-blue-600 text-xs">
+                                          {assignee.name.charAt(0)}
+                                        </AvatarFallback>
+                                      </Avatar>
+                                    ))}
+                                  </div>
+                                  <span>
+                                    {assignees.length === 1 
+                                      ? assignees[0].name 
+                                      : `${assignees[0].name} 외 ${assignees.length - 1}명`
+                                    }
+                                  </span>
                                 </div>
                               )}
                               {task.dueDate && (
@@ -468,7 +640,7 @@ export default function ProjectDashboard({ onProjectSelect, onCreateProject }: P
               <div className="space-y-4">
                 {upcomingDeadlines.map(task => {
                   const project = myProjects.find(p => p.id === task.projectId);
-                  const assignee = users.find(u => u.id === task.assigneeId);
+                  const assignees = users.filter(u => task.assigneeIds.includes(u.id));
                   const daysUntil = getDaysUntilDeadline(task.dueDate!);
                   
                   return (
@@ -490,14 +662,23 @@ export default function ProjectDashboard({ onProjectSelect, onCreateProject }: P
                             </p>
                             <div className="flex items-center gap-6 text-sm text-gray-500">
                               <span>{project?.name} ({project?.key})</span>
-                              {assignee && (
+                              {assignees.length > 0 && (
                                 <div className="flex items-center gap-1">
-                                  <Avatar className="w-4 h-4">
-                                    <AvatarFallback className="bg-blue-100 text-blue-600 text-xs">
-                                      {assignee.name.charAt(0)}
-                                    </AvatarFallback>
-                                  </Avatar>
-                                  <span>{assignee.name}</span>
+                                  <div className="flex -space-x-1">
+                                    {assignees.slice(0, 3).map(assignee => (
+                                      <Avatar key={assignee.id} className="w-4 h-4 border border-white">
+                                        <AvatarFallback className="bg-blue-100 text-blue-600 text-xs">
+                                          {assignee.name.charAt(0)}
+                                        </AvatarFallback>
+                                      </Avatar>
+                                    ))}
+                                  </div>
+                                  <span>
+                                    {assignees.length === 1 
+                                      ? assignees[0].name 
+                                      : `${assignees[0].name} 외 ${assignees.length - 1}명`
+                                    }
+                                  </span>
                                 </div>
                               )}
                               <div className="flex items-center gap-1">

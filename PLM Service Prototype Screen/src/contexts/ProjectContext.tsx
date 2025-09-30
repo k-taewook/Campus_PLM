@@ -564,7 +564,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
           description: '유사한 모바일 앱들을 분석하고 차별화 포인트를 찾습니다.',
           status: 'in-progress',
           priority: 'high',
-          assigneeId: 'user-4',
+          assigneeIds: ['user-4'],
           reporterId: 'user-4',
           projectId: 'proj-2',
           labels: ['research', 'analysis'],
@@ -1070,7 +1070,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   const getAssignedTasks = (): Task[] => {
     if (!currentUser) return [];
     return projects.flatMap(project => 
-      project.tasks.filter(task => task.assigneeId === currentUser.id)
+      project.tasks.filter(task => task.assigneeIds.includes(currentUser.id))
     );
   };
 

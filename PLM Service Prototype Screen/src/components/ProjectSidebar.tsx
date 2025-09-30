@@ -14,7 +14,8 @@ import {
   Calendar,
   BarChart3,
   Clock,
-  Home
+  Home,
+  Edit
 } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -22,6 +23,7 @@ import { Avatar, AvatarFallback } from './ui/avatar';
 import { Badge } from './ui/badge';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from './ui/dropdown-menu';
 import { useProjects, type Project } from '../contexts/ProjectContext';
+import EditProjectDialog from './EditProjectDialog';
 
 interface ProjectSidebarProps {
   selectedProjectId: string | null;
@@ -54,12 +56,16 @@ export default function ProjectSidebar({
     currentUser, 
     logout, 
     getMyProjects,
-    getProjectProgress
+    getProjectProgress,
+    canEditProject,
+    projects
   } = useProjects();
   
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(['my-projects']));
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [editingProject, setEditingProject] = useState<Project | null>(null);
+  const [showEditDialog, setShowEditDialog] = useState(false);
 
   const myProjects = getMyProjects();
 
@@ -91,9 +97,24 @@ export default function ProjectSidebar({
     }
   };
 
+  const handleEditProject = (project: Project, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditingProject(project);
+    setShowEditDialog(true);
+  };
+
+  const handleProjectDeleted = () => {
+    // 삭제된 프로젝트가 현재 선택된 프로젝트라면 대시보드로 이동
+    if (editingProject && selectedProjectId === editingProject.id) {
+      onShowDashboard();
+    }
+    setEditingProject(null);
+  };
+
   const ProjectItem = ({ project }: { project: Project }) => {
     const progress = getProjectProgress(project.id);
     const isSelected = selectedProjectId === project.id;
+    const canEdit = canEditProject(project.id);
     
     if (isCollapsed) {
       return (
@@ -165,7 +186,13 @@ export default function ProjectSidebar({
               캘린더
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>
+            {canEdit && (
+              <DropdownMenuItem onClick={(e) => handleEditProject(project, e)}>
+                <Edit className="w-4 h-4 mr-2" />
+                편집
+              </DropdownMenuItem>
+            )}
+            <DropdownMenuItem onClick={(e) => handleEditProject(project, e)}>
               <Settings className="w-4 h-4 mr-2" />
               설정
             </DropdownMenuItem>
@@ -406,6 +433,14 @@ export default function ProjectSidebar({
           )}
         </div>
       </div>
+
+      {/* Edit Project Dialog */}
+      <EditProjectDialog
+        open={showEditDialog}
+        onOpenChange={setShowEditDialog}
+        project={editingProject}
+        onProjectDeleted={handleProjectDeleted}
+      />
     </div>
   );
 }

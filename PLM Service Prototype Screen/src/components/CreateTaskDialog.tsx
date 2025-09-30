@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, User, Calendar, Flag, Clock } from 'lucide-react';
+import { Plus, User, Calendar, Flag, Clock, X } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -7,6 +7,8 @@ import { Textarea } from './ui/textarea';
 import { Label } from './ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Badge } from './ui/badge';
+import { Avatar, AvatarFallback } from './ui/avatar';
+import { Checkbox } from './ui/checkbox';
 import { useProjects } from '../contexts/ProjectContext';
 
 interface CreateTaskDialogProps {
@@ -22,7 +24,7 @@ export default function CreateTaskDialog({ open, onOpenChange, projectId }: Crea
     title: '',
     description: '',
     priority: 'medium' as const,
-    assigneeId: 'unassigned',
+    assigneeIds: [] as string[],
     estimatedHours: '',
     startDate: '',
     dueDate: '',
@@ -44,7 +46,7 @@ export default function CreateTaskDialog({ open, onOpenChange, projectId }: Crea
       description: formData.description.trim(),
       status: 'todo',
       priority: formData.priority,
-      assigneeId: formData.assigneeId === 'unassigned' ? undefined : formData.assigneeId,
+      assigneeIds: formData.assigneeIds,
       reporterId: currentUser.id,
       projectId,
       labels: formData.labels,
@@ -60,7 +62,7 @@ export default function CreateTaskDialog({ open, onOpenChange, projectId }: Crea
       title: '',
       description: '',
       priority: 'medium',
-      assigneeId: 'unassigned',
+      assigneeIds: [],
       estimatedHours: '',
       startDate: '',
       dueDate: '',
@@ -85,6 +87,32 @@ export default function CreateTaskDialog({ open, onOpenChange, projectId }: Crea
       ...formData,
       labels: formData.labels.filter(label => label !== labelToRemove)
     });
+  };
+
+  const handleAssigneeToggle = (userId: string) => {
+    setFormData(prev => {
+      const currentAssignees = prev.assigneeIds;
+      const isSelected = currentAssignees.includes(userId);
+      
+      if (isSelected) {
+        return {
+          ...prev,
+          assigneeIds: currentAssignees.filter(id => id !== userId)
+        };
+      } else {
+        return {
+          ...prev,
+          assigneeIds: [...currentAssignees, userId]
+        };
+      }
+    });
+  };
+
+  const removeAssignee = (userId: string) => {
+    setFormData(prev => ({
+      ...prev,
+      assigneeIds: prev.assigneeIds.filter(id => id !== userId)
+    }));
   };
 
   const getPriorityColor = (priority: string) => {
@@ -133,24 +161,66 @@ export default function CreateTaskDialog({ open, onOpenChange, projectId }: Crea
             </div>
           </div>
 
-          {/* Assignment and Priority */}
+          {/* Assignees and Priority */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <Label htmlFor="assignee">담당자</Label>
-              <Select value={formData.assigneeId} onValueChange={(value) => setFormData({ ...formData, assigneeId: value })}>
-                <SelectTrigger>
-                  <User className="w-4 h-4 mr-2" />
-                  <SelectValue placeholder="담당자 선택" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="unassigned">할당하지 않음</SelectItem>
-                  {teamMembers.map(member => (
-                    <SelectItem key={member.id} value={member.id}>
-                      {member.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label>담당자</Label>
+              <div className="mt-2 space-y-3">
+                {/* Selected Assignees */}
+                {formData.assigneeIds.length > 0 && (
+                  <div>
+                    <p className="text-sm text-gray-600 mb-2">선택된 담당자 ({formData.assigneeIds.length}명)</p>
+                    <div className="flex flex-wrap gap-2">
+                      {formData.assigneeIds.map(assigneeId => {
+                        const assignee = teamMembers.find(m => m.id === assigneeId);
+                        if (!assignee) return null;
+                        return (
+                          <Badge key={assigneeId} variant="secondary" className="flex items-center gap-2">
+                            <Avatar className="w-4 h-4">
+                              <AvatarFallback className="bg-blue-100 text-blue-600 text-xs">
+                                {assignee.name.charAt(0)}
+                              </AvatarFallback>
+                            </Avatar>
+                            {assignee.name}
+                            <X 
+                              className="w-3 h-3 cursor-pointer hover:text-red-600" 
+                              onClick={() => removeAssignee(assigneeId)}
+                            />
+                          </Badge>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Available Team Members */}
+                <div className="border rounded-lg p-3 max-h-32 overflow-y-auto">
+                  <p className="text-sm text-gray-600 mb-2">사용 가능한 팀원</p>
+                  <div className="space-y-2">
+                    {teamMembers.map(member => {
+                      const isSelected = formData.assigneeIds.includes(member.id);
+                      
+                      return (
+                        <div key={member.id} className="flex items-center space-x-2">
+                          <Checkbox 
+                            id={`assignee-${member.id}`}
+                            checked={isSelected}
+                            onCheckedChange={() => handleAssigneeToggle(member.id)}
+                          />
+                          <div className="flex items-center gap-2 flex-1">
+                            <Avatar className="w-5 h-5">
+                              <AvatarFallback className="bg-blue-100 text-blue-600 text-xs">
+                                {member.name.charAt(0)}
+                              </AvatarFallback>
+                            </Avatar>
+                            <span className="text-sm">{member.name}</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
             </div>
 
             <div>
@@ -277,8 +347,8 @@ export default function CreateTaskDialog({ open, onOpenChange, projectId }: Crea
                 <p className="text-sm text-gray-600 line-clamp-2">{formData.description}</p>
               )}
               <div className="flex items-center gap-4 text-xs text-gray-500">
-                {formData.assigneeId && formData.assigneeId !== 'unassigned' && (
-                  <span>담당자: {teamMembers.find(m => m.id === formData.assigneeId)?.name}</span>
+                {formData.assigneeIds.length > 0 && (
+                  <span>담당자: {formData.assigneeIds.map(id => teamMembers.find(m => m.id === id)?.name).filter(Boolean).join(', ')}</span>
                 )}
                 {formData.estimatedHours && (
                   <span>예상: {formData.estimatedHours}시간</span>

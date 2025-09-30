@@ -16,10 +16,9 @@ interface CreateProjectDialogProps {
 }
 
 export default function CreateProjectDialog({ open, onOpenChange }: CreateProjectDialogProps) {
-  const { createProject, users, currentUser } = useProjects();
+  const { createProject, users, currentUser, projects } = useProjects();
   
   const [formData, setFormData] = useState({
-    key: '',
     name: '',
     description: '',
     type: 'software' as const,
@@ -29,13 +28,35 @@ export default function CreateProjectDialog({ open, onOpenChange }: CreateProjec
     endDate: ''
   });
 
+  const [nameError, setNameError] = useState('');
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!formData.key.trim() || !formData.name.trim() || !currentUser) return;
+    if (!formData.name.trim() || !currentUser) return;
+
+    // Check for duplicate project names
+    const existingProject = projects.find(p => 
+      p.name.toLowerCase() === formData.name.trim().toLowerCase()
+    );
+    
+    if (existingProject) {
+      setNameError('같은 이름의 프로젝트가 이미 존재합니다.');
+      return;
+    }
+
+    // Generate project key from name
+    const generateProjectKey = (name: string) => {
+      const words = name.trim().split(/\s+/);
+      if (words.length === 1) {
+        return words[0].substring(0, 4).toUpperCase();
+      } else {
+        return words.slice(0, 3).map(word => word.charAt(0)).join('').toUpperCase();
+      }
+    };
 
     createProject({
-      key: formData.key.trim().toUpperCase(),
+      key: generateProjectKey(formData.name.trim()),
       name: formData.name.trim(),
       description: formData.description.trim(),
       status: 'planning',
@@ -54,7 +75,6 @@ export default function CreateProjectDialog({ open, onOpenChange }: CreateProjec
 
     // Reset form
     setFormData({
-      key: '',
       name: '',
       description: '',
       type: 'software',
@@ -63,6 +83,7 @@ export default function CreateProjectDialog({ open, onOpenChange }: CreateProjec
       startDate: '',
       endDate: ''
     });
+    setNameError('');
     onOpenChange(false);
   };
 
@@ -87,21 +108,16 @@ export default function CreateProjectDialog({ open, onOpenChange }: CreateProjec
     });
   };
 
-  const generateProjectKey = (name: string) => {
-    const words = name.trim().split(/\s+/);
-    if (words.length === 1) {
-      return words[0].substring(0, 4).toUpperCase();
-    } else {
-      return words.slice(0, 3).map(word => word.charAt(0)).join('').toUpperCase();
-    }
-  };
-
   const handleNameChange = (name: string) => {
     setFormData(prev => ({
       ...prev,
-      name,
-      key: prev.key || generateProjectKey(name)
+      name
     }));
+    
+    // Clear name error when user starts typing
+    if (nameError) {
+      setNameError('');
+    }
   };
 
   const getTypeIcon = (type: string) => {
@@ -129,31 +145,19 @@ export default function CreateProjectDialog({ open, onOpenChange }: CreateProjec
         
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Basic Info */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <Label htmlFor="key">프로젝트 키 *</Label>
-              <Input
-                id="key"
-                value={formData.key}
-                onChange={(e) => setFormData({ ...formData, key: e.target.value.toUpperCase() })}
-                placeholder="예: WEB"
-                maxLength={10}
-                required
-                className="uppercase"
-              />
-              <p className="text-xs text-gray-500 mt-1">2-10자의 고유 식별자</p>
-            </div>
-            
-            <div className="md:col-span-2">
-              <Label htmlFor="name">프로젝트 이름 *</Label>
-              <Input
-                id="name"
-                value={formData.name}
-                onChange={(e) => handleNameChange(e.target.value)}
-                placeholder="프로젝트 이름을 입력하세요"
-                required
-              />
-            </div>
+          <div>
+            <Label htmlFor="name">프로젝트 이름 *</Label>
+            <Input
+              id="name"
+              value={formData.name}
+              onChange={(e) => handleNameChange(e.target.value)}
+              placeholder="프로젝트 이름을 입력하세요"
+              required
+              className={nameError ? 'border-red-500' : ''}
+            />
+            {nameError && (
+              <p className="text-sm text-red-600 mt-1">{nameError}</p>
+            )}
           </div>
 
           <div>
@@ -322,7 +326,13 @@ export default function CreateProjectDialog({ open, onOpenChange }: CreateProjec
             <div className="space-y-2">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
-                  <span className="text-white font-bold text-sm">{formData.key || 'KEY'}</span>
+                  <span className="text-white font-bold text-sm">
+                    {formData.name ? (
+                      formData.name.trim().split(/\s+/).length === 1 
+                        ? formData.name.substring(0, 4).toUpperCase()
+                        : formData.name.trim().split(/\s+/).slice(0, 3).map(word => word.charAt(0)).join('').toUpperCase()
+                    ) : 'KEY'}
+                  </span>
                 </div>
                 <div>
                   <div className="font-medium">{formData.name || '프로젝트 이름'}</div>
@@ -350,7 +360,7 @@ export default function CreateProjectDialog({ open, onOpenChange }: CreateProjec
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               취소
             </Button>
-            <Button type="submit" disabled={!formData.key.trim() || !formData.name.trim()}>
+            <Button type="submit" disabled={!formData.name.trim()}>
               프로젝트 생성
             </Button>
           </div>
