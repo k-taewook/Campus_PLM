@@ -1,16 +1,57 @@
 
-# PLM Service Prototype Screen
+# PLM Service - Full Stack Application
 
-> 제품 생명주기 관리(PLM) 서비스를 위한 현대적인 웹 애플리케이션 프로토타입
+> 제품 생명주기 관리(PLM)를 위한 현대적인 풀스택 웹 애플리케이션
 
 ![React](https://img.shields.io/badge/React-18.3.1-blue.svg)
+![Node.js](https://img.shields.io/badge/Node.js-18.x-green.svg)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue.svg)
-![Vite](https://img.shields.io/badge/Vite-6.3.5-646CFF.svg)
-![TailwindCSS](https://img.shields.io/badge/TailwindCSS-3.x-38B2AC.svg)
+![MongoDB](https://img.shields.io/badge/MongoDB-7.0-green.svg)
+![Docker](https://img.shields.io/badge/Docker-Compose-blue.svg)
+
+## � 프로젝트 구조
+
+```
+project/
+├── frontend/                 # React + TypeScript 프론트엔드
+│   ├── src/
+│   │   ├── components/      # React 컴포넌트
+│   │   ├── contexts/        # React Context
+│   │   ├── styles/          # CSS 스타일
+│   │   └── ...
+│   ├── package.json
+│   └── vite.config.ts
+│
+├── backend/                  # Node.js + Express 백엔드
+│   ├── src/
+│   │   ├── config/          # 설정 파일
+│   │   ├── controllers/     # API 컨트롤러
+│   │   ├── middleware/      # 미들웨어
+│   │   ├── models/          # 데이터베이스 모델
+│   │   ├── routes/          # API 라우트
+│   │   ├── services/        # 비즈니스 로직
+│   │   ├── utils/           # 유틸리티 함수
+│   │   └── types/           # TypeScript 타입
+│   ├── package.json
+│   └── tsconfig.json
+│
+├── shared/                   # 공통 타입 및 유틸리티
+│   ├── src/
+│   │   ├── types/           # 공통 TypeScript 타입
+│   │   ├── interfaces/      # 인터페이스 정의
+│   │   ├── enums/           # 열거형
+│   │   ├── utils/           # 공통 유틸리티
+│   │   └── validators/      # 유효성 검증
+│   └── package.json
+│
+├── docker-compose.yml        # Docker 개발 환경
+├── .gitignore
+└── README.md
+```
 
 ## 📖 프로젝트 개요
 
-PLM Service Prototype Screen은 제품 생명주기 관리를 위한 웹 기반 솔루션입니다. 이 프로토타입은 프로젝트 관리, 팀 협업, 문서 관리, 사용자 관리 등의 핵심 기능을 제공합니다.
+PLM Service는 제품 생명주기 관리를 위한 현대적인 풀스택 웹 애플리케이션입니다. 프론트엔드와 백엔드가 분리된 구조로 설계되어 확장성과 유지보수성을 높였습니다.
 
 **원본 디자인**: [Figma 프로젝트](https://www.figma.com/design/Ux9U6zpn6s8PDVoWligcrO/PLM-Service-Prototype-Screen)
 
