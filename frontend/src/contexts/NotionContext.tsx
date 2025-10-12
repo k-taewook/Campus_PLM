@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 
 export interface User {
   id: string;
@@ -126,8 +126,45 @@ export function NotionProvider({ children }: { children: ReactNode }) {
     }
   ]);
 
-  const [currentUser, setCurrentUser] = useState<User | null>(users[0]); // 로그인된 상태로 시작
-  const [isAuthenticated, setIsAuthenticated] = useState(true);
+  const [currentUser, setCurrentUser] = useState<User | null>(null); // 초기에는 로그인하지 않은 상태
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+
+  // 페이지 로드 시 토큰 확인
+  useEffect(() => {
+    const token = localStorage.getItem('authToken');
+    if (token) {
+      // 토큰이 있으면 사용자 정보 확인
+      fetch('http://localhost:3001/api/auth/me', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.success) {
+          const backendUser = data.data;
+          const frontendUser: User = {
+            id: backendUser.id,
+            name: backendUser.name,
+            email: backendUser.email,
+            createdAt: new Date().toISOString().split('T')[0],
+            lastActive: new Date().toISOString()
+          };
+          setCurrentUser(frontendUser);
+          setIsAuthenticated(true);
+        } else {
+          // 유효하지 않은 토큰이면 제거
+          localStorage.removeItem('authToken');
+          localStorage.removeItem('userRole');
+        }
+      })
+      .catch(() => {
+        // 오류 발생 시 토큰 제거
+        localStorage.removeItem('authToken');
+        localStorage.removeItem('userRole');
+      });
+    }
+  }, []);
 
   const [pages, setPages] = useState<Page[]>([
     {
@@ -223,14 +260,46 @@ export function NotionProvider({ children }: { children: ReactNode }) {
 
   // Auth functions
   const login = async (email: string, password: string): Promise<boolean> => {
-    // Mock login logic
-    const user = users.find(u => u.email === email);
-    if (user) {
-      setCurrentUser(user);
-      setIsAuthenticated(true);
-      return true;
+    try {
+      // 백엔드 API로 로그인 요청
+      const response = await fetch('http://localhost:3001/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, password }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          // 백엔드에서 받은 사용자 정보로 상태 업데이트
+          const backendUser = data.data.user;
+          const frontendUser: User = {
+            id: backendUser.id,
+            name: backendUser.name,
+            email: backendUser.email,
+            createdAt: new Date().toISOString().split('T')[0],
+            lastActive: new Date().toISOString()
+          };
+          
+          setCurrentUser(frontendUser);
+          setIsAuthenticated(true);
+          
+          // 토큰 저장 (로컬스토리지에)
+          localStorage.setItem('authToken', data.data.token);
+          localStorage.setItem('userRole', backendUser.role);
+          
+          return true;
+        }
+      }
+      
+      // 로그인 실패
+      return false;
+    } catch (error) {
+      console.error('Login error:', error);
+      return false;
     }
-    return false;
   };
 
   const register = async (name: string, email: string, password: string): Promise<boolean> => {
@@ -274,6 +343,9 @@ export function NotionProvider({ children }: { children: ReactNode }) {
   const logout = () => {
     setCurrentUser(null);
     setIsAuthenticated(false);
+    // 저장된 토큰과 사용자 정보 제거
+    localStorage.removeItem('authToken');
+    localStorage.removeItem('userRole');
   };
 
   // Page functions

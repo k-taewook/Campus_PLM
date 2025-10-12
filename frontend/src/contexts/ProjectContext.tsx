@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 
 export interface User {
   id: string;
@@ -210,8 +210,46 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     }
   ]);
 
-  const [currentUser, setCurrentUser] = useState<User | null>(users[0]);
-  const [isAuthenticated, setIsAuthenticated] = useState(true);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+
+  // 페이지 로드 시 토큰 확인
+  useEffect(() => {
+    const token = localStorage.getItem('authToken');
+    if (token) {
+      // 토큰이 있으면 사용자 정보 확인
+      fetch('http://localhost:3001/api/auth/me', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.success) {
+          const backendUser = data.data;
+          const frontendUser: User = {
+            id: backendUser.id,
+            name: backendUser.name,
+            email: backendUser.email,
+            role: backendUser.role === 'admin' ? 'admin' : 'member',
+            createdAt: new Date().toISOString(),
+            lastActive: new Date().toISOString()
+          };
+          setCurrentUser(frontendUser);
+          setIsAuthenticated(true);
+        } else {
+          // 유효하지 않은 토큰이면 제거
+          localStorage.removeItem('authToken');
+          localStorage.removeItem('userRole');
+        }
+      })
+      .catch(() => {
+        // 오류 발생 시 토큰 제거
+        localStorage.removeItem('authToken');
+        localStorage.removeItem('userRole');
+      });
+    }
+  }, []);
 
   const [projects, setProjects] = useState<Project[]>([
     {
@@ -645,13 +683,44 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
 
   // Auth functions
   const login = async (email: string, password: string): Promise<boolean> => {
-    const user = users.find(u => u.email === email);
-    if (user) {
-      setCurrentUser(user);
-      setIsAuthenticated(true);
-      return true;
+    try {
+      // 백엔드 API로 로그인 요청
+      const response = await fetch('http://localhost:3001/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, password }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        // JWT 토큰 저장
+        localStorage.setItem('authToken', data.data.token);
+        localStorage.setItem('userRole', data.data.user.role);
+
+        // 백엔드 사용자 정보를 프론트엔드 형식으로 변환
+        const backendUser = data.data.user;
+        const frontendUser: User = {
+          id: backendUser.id,
+          name: backendUser.name,
+          email: backendUser.email,
+          role: backendUser.role === 'admin' ? 'admin' : 'member',
+          createdAt: new Date().toISOString(),
+          lastActive: new Date().toISOString()
+        };
+
+        setCurrentUser(frontendUser);
+        setIsAuthenticated(true);
+        return true;
+      } else {
+        return false;
+      }
+    } catch (error) {
+      console.error('Login error:', error);
+      return false;
     }
-    return false;
   };
 
   const register = async (name: string, email: string, password: string): Promise<boolean> => {
@@ -671,6 +740,10 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = () => {
+    // 로컬스토리지에서 토큰 제거
+    localStorage.removeItem('authToken');
+    localStorage.removeItem('userRole');
+    
     setCurrentUser(null);
     setIsAuthenticated(false);
   };

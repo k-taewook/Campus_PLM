@@ -17,13 +17,9 @@ export default function AuthScreen() {
     setError('');
 
     try {
-      // Simple login check for admin/1234
-      if (loginForm.username === 'admin' && loginForm.password === '1234') {
-        const success = await login('project@example.com', '1234');
-        if (!success) {
-          setError('로그인 중 오류가 발생했습니다.');
-        }
-      } else {
+      // 백엔드 API를 통한 실제 로그인
+      const success = await login(loginForm.username, loginForm.password);
+      if (!success) {
         setError('아이디 또는 비밀번호가 올바르지 않습니다.');
       }
     } catch (err) {
@@ -61,7 +57,7 @@ export default function AuthScreen() {
                   type="text"
                   value={loginForm.username}
                   onChange={(e) => setLoginForm({...loginForm, username: e.target.value})}
-                  placeholder="admin"
+                  placeholder="admin@example.com 또는 user"
                   required
                 />
               </div>
@@ -72,7 +68,7 @@ export default function AuthScreen() {
                   type="password"
                   value={loginForm.password}
                   onChange={(e) => setLoginForm({...loginForm, password: e.target.value})}
-                  placeholder="1234"
+                  placeholder="password 또는 1111"
                   required
                 />
               </div>
@@ -88,9 +84,17 @@ export default function AuthScreen() {
             <div className="mt-6 pt-6 border-t">
               <div className="bg-blue-50 p-4 rounded-lg">
                 <h4 className="font-medium text-blue-900 mb-2">데모 계정 정보</h4>
-                <div className="text-sm text-blue-700 space-y-1">
-                  <p><strong>아이디:</strong> admin</p>
-                  <p><strong>비밀번호:</strong> 1234</p>
+                <div className="text-sm text-blue-700 space-y-2">
+                  <div>
+                    <p><strong>관리자 계정:</strong></p>
+                    <p>ID: admin@example.com</p>
+                    <p>PW: password</p>
+                  </div>
+                  <div className="border-t pt-2">
+                    <p><strong>일반 사용자 계정:</strong></p>
+                    <p>ID: user</p>
+                    <p>PW: 1111</p>
+                  </div>
                 </div>
               </div>
             </div>
