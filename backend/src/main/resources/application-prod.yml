@@ -1,0 +1,33 @@
+spring:
+  application:
+    name: plm-backend
+    
+  datasource:
+    url: jdbc:mysql://localhost:3306/plmdb?useSSL=true&serverTimezone=Asia/Seoul
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    username: ${DB_USERNAME:plm_user}  # 환경변수 또는 기본값
+    password: ${DB_PASSWORD:plm_password}
+      
+  jpa:
+    hibernate:
+      ddl-auto: validate  # 운영환경: 스키마 검증만
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.MySQLDialect
+        format_sql: false
+        
+  devtools:
+    restart:
+      enabled: false
+    livereload:
+      enabled: false
+
+server:
+  port: 8080
+
+logging:
+  level:
+    com.plm.api: INFO
+    org.springframework.web: WARN
+    org.hibernate.SQL: WARN

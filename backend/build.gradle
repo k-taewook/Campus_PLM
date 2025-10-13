@@ -28,7 +28,11 @@ dependencies {
     
     developmentOnly 'org.springframework.boot:spring-boot-devtools'
     
-    runtimeOnly 'com.h2database:h2'
+    // MySQL 데이터베이스 드라이버
+    runtimeOnly 'com.mysql:mysql-connector-j'
+    
+    // 개발/테스트용 H2 (선택사항 - 테스트 시에만 사용)
+    testRuntimeOnly 'com.h2database:h2'
     
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     

@@ -65,27 +65,4 @@ public class PlmController {
         
         return ResponseEntity.ok(products);
     }
-
-    @GetMapping("/projects")
-    public ResponseEntity<List<Map<String, Object>>> getProjects() {
-        List<Map<String, Object>> projects = new ArrayList<>();
-        
-        Map<String, Object> project1 = new HashMap<>();
-        project1.put("id", 1);
-        project1.put("name", "Next Gen Platform");
-        project1.put("progress", 75);
-        project1.put("status", "Active");
-        project1.put("dueDate", "2024-12-15");
-        projects.add(project1);
-        
-        Map<String, Object> project2 = new HashMap<>();
-        project2.put("id", 2);
-        project2.put("name", "Mobile App Enhancement");
-        project2.put("progress", 45);
-        project2.put("status", "Active");
-        project2.put("dueDate", "2024-11-30");
-        projects.add(project2);
-        
-        return ResponseEntity.ok(projects);
-    }
 }

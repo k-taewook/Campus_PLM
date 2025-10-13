@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
 
 // Axios 인스턴스 생성
 const api = axios.create({
@@ -34,6 +34,33 @@ api.interceptors.response.use(
   }
 );
 
+// 타입 정의
+export interface Project {
+  id: number;
+  name: string;
+  description: string;
+  status: 'PLANNING' | 'ACTIVE' | 'COMPLETED' | 'CANCELLED' | 'ON_HOLD';
+  startDate: string;
+  endDate: string;
+  managerId: string;
+  createdAt: string;
+  updatedAt: string;
+  progress?: number;
+}
+
+export interface Task {
+  id: number;
+  title: string;
+  description: string;
+  status: 'TODO' | 'IN_PROGRESS' | 'REVIEW' | 'DONE' | 'CANCELLED';
+  priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
+  projectId: number;
+  assigneeId: string;
+  dueDate: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 // API 서비스 함수들
 export const plmApi = {
   // 대시보드 요약 정보 가져오기
@@ -55,9 +82,67 @@ export const plmApi = {
   },
 
   // 프로젝트 목록 가져오기
-  getProjects: async () => {
+  getProjects: async (): Promise<Project[]> => {
     const response = await api.get('/projects');
     return response.data;
+  },
+
+  // 특정 프로젝트 가져오기
+  getProject: async (id: number): Promise<Project> => {
+    const response = await api.get(`/projects/${id}`);
+    return response.data;
+  },
+
+  // 프로젝트 생성
+  createProject: async (project: Omit<Project, 'id' | 'createdAt' | 'updatedAt'>): Promise<Project> => {
+    const response = await api.post('/projects', project);
+    return response.data;
+  },
+
+  // 프로젝트 업데이트
+  updateProject: async (id: number, project: Partial<Project>): Promise<Project> => {
+    const response = await api.put(`/projects/${id}`, project);
+    return response.data;
+  },
+
+  // 프로젝트 삭제
+  deleteProject: async (id: number): Promise<void> => {
+    await api.delete(`/projects/${id}`);
+  },
+
+  // 태스크 목록 가져오기
+  getTasks: async (): Promise<Task[]> => {
+    const response = await api.get('/tasks');
+    return response.data;
+  },
+
+  // 특정 프로젝트의 태스크 가져오기
+  getTasksByProject: async (projectId: number): Promise<Task[]> => {
+    const response = await api.get(`/tasks/project/${projectId}`);
+    return response.data;
+  },
+
+  // 특정 태스크 가져오기
+  getTask: async (id: number): Promise<Task> => {
+    const response = await api.get(`/tasks/${id}`);
+    return response.data;
+  },
+
+  // 태스크 생성
+  createTask: async (task: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>): Promise<Task> => {
+    const response = await api.post('/tasks', task);
+    return response.data;
+  },
+
+  // 태스크 업데이트
+  updateTask: async (id: number, task: Partial<Task>): Promise<Task> => {
+    const response = await api.put(`/tasks/${id}`, task);
+    return response.data;
+  },
+
+  // 태스크 삭제
+  deleteTask: async (id: number): Promise<void> => {
+    await api.delete(`/tasks/${id}`);
   },
 };
 
