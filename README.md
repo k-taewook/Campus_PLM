@@ -17,17 +17,28 @@
 
 ## 🏗️ 프로젝트 구조
 
+### ⚡ Feature-Based Architecture (기능별 구조)
+팀 협업을 위해 **기능별(Feature-based)** 구조로 설계되어, 각 팀원이 독립적으로 기능을 개발할 수 있습니다.
+
 ```
 project/
 ├── backend/                    # Spring Boot API 서버
 │   ├── src/main/java/com/plm/api/
-│   │   ├── config/            # CORS, 설정 클래스
-│   │   ├── controller/        # REST API 컨트롤러
-│   │   ├── dto/              # 데이터 전송 객체
-│   │   ├── entity/           # JPA 엔티티 (Project, Task)
-│   │   ├── repository/       # Spring Data JPA 레포지토리
-│   │   ├── service/          # 비즈니스 로직
-│   │   └── util/            # 데이터 로더, 유틸리티
+│   │   ├── Application.java          # Spring Boot 메인 클래스
+│   │   ├── common/                   # 공통 설정 및 유틸리티
+│   │   │   └── config/              # CORS, 데이터 로더 등
+│   │   ├── project/                  # 프로젝트 기능 모듈
+│   │   │   ├── controller/          # 프로젝트 REST API
+│   │   │   ├── service/             # 프로젝트 비즈니스 로직
+│   │   │   ├── repository/          # 프로젝트 데이터 접근
+│   │   │   ├── dto/                 # 프로젝트 DTO
+│   │   │   └── entity/              # Project, ProjectStatus
+│   │   └── task/                     # 태스크 기능 모듈
+│   │       ├── controller/          # 태스크 REST API
+│   │       ├── service/             # 태스크 비즈니스 로직
+│   │       ├── repository/          # 태스크 데이터 접근
+│   │       ├── dto/                 # 태스크 DTO
+│   │       └── entity/              # Task, TaskStatus, Priority
 │   ├── src/main/resources/
 │   │   ├── application.yml          # 기본 설정
 │   │   ├── application-dev.yml      # 개발환경 설정
@@ -35,14 +46,36 @@ project/
 │   └── build.gradle
 ├── frontend/                   # React + Vite 프론트엔드
 │   ├── src/
-│   │   ├── components/        # 재사용 가능한 UI 컴포넌트
-│   │   ├── contexts/          # React Context API
-│   │   ├── services/          # API 서비스 (Axios)
-│   │   └── lib/              # 유틸리티 함수
+│   │   ├── common/                   # 공통 모듈
+│   │   │   ├── components/ui/       # 재사용 UI 컴포넌트
+│   │   │   ├── contexts/            # React Context API
+│   │   │   └── styles/              # 공통 스타일
+│   │   ├── features/                 # 기능별 모듈
+│   │   │   ├── project/             # 프로젝트 기능
+│   │   │   │   ├── components/      # 프로젝트 컴포넌트
+│   │   │   │   ├── services/        # 프로젝트 API
+│   │   │   │   └── types/           # 프로젝트 타입
+│   │   │   ├── task/                # 태스크 기능
+│   │   │   │   ├── components/      # 태스크 컴포넌트
+│   │   │   │   ├── services/        # 태스크 API
+│   │   │   │   └── types/           # 태스크 타입
+│   │   │   ├── notion/              # Notion 기능
+│   │   │   │   └── components/      # Notion 컴포넌트
+│   │   │   └── user/                # 사용자 기능
+│   │   │       └── components/      # 사용자 컴포넌트
+│   │   ├── services/                 # Base API 설정
+│   │   ├── App.tsx                   # 메인 앱 컴포넌트
+│   │   └── main.tsx                  # 엔트리 포인트
 │   ├── package.json
 │   └── vite.config.ts
 └── README.md
 ```
+
+### 📦 Feature-Based 구조의 장점
+- ✅ **팀 협업 효율성**: 각 기능별로 독립적 개발 가능
+- ✅ **Merge Conflict 최소화**: 서로 다른 폴더에서 작업
+- ✅ **코드 응집도 향상**: 관련 코드가 한 곳에 모여있음
+- ✅ **유지보수 용이성**: 기능별로 찾기 쉽고 수정 간편
 
 ## 🚀 기술 스택
 
@@ -135,6 +168,7 @@ npm run dev
 
 ### ✅ 완료된 기능
 - [x] **풀스택 아키텍처**: 프론트엔드-백엔드 완전 분리
+- [x] **Feature-Based 구조**: 팀 협업에 최적화된 기능별 폴더 구조
 - [x] **MySQL 데이터베이스 연동**: 실제 데이터 영속성
 - [x] **프로젝트 관리**: 완전한 CRUD 작업 지원
 - [x] **태스크 관리**: 프로젝트별 작업 추적 및 관리
@@ -145,6 +179,7 @@ npm run dev
 - [x] **CORS 설정**: 개발환경 CORS 해결
 - [x] **샘플 데이터**: 자동 로딩되는 테스트 데이터
 - [x] **개발 환경 최적화**: 핫 리로드, DevTools
+- [x] **코드 리팩토링**: Layer-based → Feature-based 구조 전환
 
 ### 🔄 개발 예정 기능
 - [ ] 사용자 인증 및 권한 관리 (JWT, Spring Security)
