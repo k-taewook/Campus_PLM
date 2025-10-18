@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { ProjectApiProvider } from './contexts/ProjectApiContext';
-import ProjectApiDashboard from './components/ProjectApiDashboard';
+import { ProjectApiProvider } from './common/contexts/ProjectApiContext';
+import ProjectApiDashboard from './features/project/components/ProjectApiDashboard';
 
 function ProjectApiApp() {
   const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null);
