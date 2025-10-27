@@ -7,8 +7,13 @@ import com.plm.api.task.entity.Task;
 import com.plm.api.task.entity.TaskStatus;
 import com.plm.api.task.entity.Priority;
 import com.plm.api.task.repository.TaskRepository;
+import com.plm.api.user.entity.User;
+import com.plm.api.user.entity.UserRole;
+import com.plm.api.user.entity.UserStatus;
+import com.plm.api.user.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
@@ -22,11 +27,37 @@ public class DataLoader implements CommandLineRunner {
     @Autowired
     private TaskRepository taskRepository;
     
+    @Autowired
+    private UserRepository userRepository;
+    
+    private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
+    
     @Override
     public void run(String... args) throws Exception {
+        // Admin 계정 생성 (없을 경우에만)
+        loadAdminUser();
+        
         // 샘플 데이터가 이미 있는지 확인
         if (projectRepository.count() == 0) {
             loadSampleData();
+        }
+    }
+    
+    private void loadAdminUser() {
+        // admin 계정이 없으면 생성
+        if (userRepository.findByEmail("admin@plm.com").isEmpty()) {
+            User admin = new User();
+            admin.setEmail("admin@plm.com");
+            admin.setUsername("admin");
+            admin.setPassword(passwordEncoder.encode("admin1234")); // BCrypt 암호화
+            admin.setFullName("시스템 관리자");
+            admin.setRole(UserRole.ADMIN);
+            admin.setStatus(UserStatus.ACTIVE);
+            admin.setCreatedAt(LocalDateTime.now());
+            admin.setUpdatedAt(LocalDateTime.now());
+            
+            userRepository.save(admin);
+            System.out.println("Admin 계정 생성 완료: admin@plm.com / admin1234");
         }
     }
     

@@ -1,4 +1,5 @@
-import { createContext, useContext, useState, ReactNode } from 'react';
+import { createContext, useContext, useState, ReactNode, useEffect } from 'react';
+import { useAuth } from './AuthContext';
 
 export interface User {
   id: string;
@@ -174,6 +175,10 @@ export function useProjects() {
 }
 
 export function ProjectProvider({ children }: { children: ReactNode }) {
+  // AuthContext에서 실제 로그인한 사용자 가져오기
+  const authContext = useAuth();
+  const authUser = authContext?.user;
+
   // Mock users
   const [users, setUsers] = useState<User[]>([
     {
@@ -220,6 +225,38 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
 
   const [currentUser, setCurrentUser] = useState<User | null>(users[0]);
   const [isAuthenticated, setIsAuthenticated] = useState(true);
+
+  // AuthContext의 사용자 정보로 currentUser 업데이트
+  useEffect(() => {
+    if (authUser) {
+      // AuthContext의 사용자 정보를 ProjectContext의 User 형식으로 변환
+      const projectUser: User = {
+        id: authUser.id.toString(),
+        name: authUser.fullName,
+        email: authUser.email,
+        avatar: authUser.profileImageUrl,
+        role: authUser.role === 'ADMIN' ? 'admin' : 
+              authUser.role === 'MANAGER' ? 'manager' : 'member',
+        createdAt: new Date().toISOString(),
+        lastActive: new Date().toISOString()
+      };
+      
+      setCurrentUser(projectUser);
+      
+      // users 배열에 현재 사용자가 없으면 추가
+      setUsers(prevUsers => {
+        const existingUserIndex = prevUsers.findIndex(u => u.email === projectUser.email);
+        if (existingUserIndex === -1) {
+          return [projectUser, ...prevUsers];
+        } else {
+          // 기존 사용자 정보 업데이트
+          const newUsers = [...prevUsers];
+          newUsers[existingUserIndex] = projectUser;
+          return newUsers;
+        }
+      });
+    }
+  }, [authUser]);
 
   const [projects, setProjects] = useState<Project[]>([
     {
@@ -1219,7 +1256,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     if (!member) return false;
     
     // Can edit if assigned to task, reported the task, or has permission to edit all tasks
-    return task.assigneeId === currentUser.id || 
+    return task.assigneeIds.includes(currentUser.id) || 
            task.reporterId === currentUser.id || 
            member.permissions.canEditAllTasks;
   };

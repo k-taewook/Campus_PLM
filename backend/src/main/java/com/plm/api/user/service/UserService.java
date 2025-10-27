@@ -5,11 +5,14 @@ import com.plm.api.user.entity.User;
 import com.plm.api.user.entity.UserRole;
 import com.plm.api.user.entity.UserStatus;
 import com.plm.api.user.repository.UserRepository;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 /**
@@ -52,9 +55,95 @@ import java.util.stream.Collectors;
 public class UserService {
     
     private final UserRepository userRepository;
+    private final BCryptPasswordEncoder passwordEncoder;
+    private static final Pattern EMAIL_PATTERN = Pattern.compile("^[A-Za-z0-9+_.-]+@(.+)$");
     
     public UserService(UserRepository userRepository) {
         this.userRepository = userRepository;
+        this.passwordEncoder = new BCryptPasswordEncoder();
+    }
+    
+    // ========== 인증 관련 메서드 ==========
+    
+    /**
+     * 회원가입 - 새로운 사용자 등록
+     * @param email 이메일
+     * @param password 비밀번호 (평문)
+     * @param fullName 전체 이름
+     * @return 생성된 사용자 정보 (비밀번호 제외)
+     */
+    public UserDto register(String email, String password, String fullName) {
+        // 이메일 유효성 검사
+        if (!isValidEmail(email)) {
+            throw new RuntimeException("유효하지 않은 이메일 형식입니다.");
+        }
+        
+        // 이메일 중복 체크
+        if (userRepository.findByEmail(email).isPresent()) {
+            throw new RuntimeException("이미 사용 중인 이메일입니다.");
+        }
+        
+        // 비밀번호 검증 (최소 8자)
+        if (password == null || password.length() < 8) {
+            throw new RuntimeException("비밀번호는 최소 8자 이상이어야 합니다.");
+        }
+        
+        // 새 사용자 생성
+        User user = new User();
+        user.setEmail(email);
+        user.setUsername(email.split("@")[0]); // 이메일의 @ 앞부분을 username으로 사용
+        user.setPassword(passwordEncoder.encode(password)); // BCrypt 암호화
+        user.setFullName(fullName);
+        user.setRole(UserRole.VIEWER); // 기본 역할: VIEWER
+        user.setStatus(UserStatus.ACTIVE); // 기본 상태: ACTIVE
+        user.setCreatedAt(LocalDateTime.now());
+        user.setUpdatedAt(LocalDateTime.now());
+        
+        User savedUser = userRepository.save(user);
+        return convertToDto(savedUser);
+    }
+    
+    /**
+     * 로그인 - 이메일과 비밀번호로 사용자 인증
+     * @param email 이메일
+     * @param password 비밀번호 (평문)
+     * @return 인증된 사용자 정보 (비밀번호 제외)
+     */
+    public UserDto login(String email, String password) {
+        // 이메일로 사용자 조회
+        Optional<User> userOptional = userRepository.findByEmail(email);
+        if (userOptional.isEmpty()) {
+            throw new RuntimeException("이메일 또는 비밀번호가 올바르지 않습니다.");
+        }
+        
+        User user = userOptional.get();
+        
+        // 비밀번호 검증
+        if (!passwordEncoder.matches(password, user.getPassword())) {
+            throw new RuntimeException("이메일 또는 비밀번호가 올바르지 않습니다.");
+        }
+        
+        // 계정 상태 확인
+        if (user.getStatus() != UserStatus.ACTIVE) {
+            throw new RuntimeException("비활성화된 계정입니다. 관리자에게 문의하세요.");
+        }
+        
+        // 마지막 로그인 시간 업데이트
+        user.setLastLoginAt(LocalDateTime.now());
+        user.setUpdatedAt(LocalDateTime.now());
+        userRepository.save(user);
+        
+        return convertToDto(user);
+    }
+    
+    /**
+     * 이메일 유효성 검사
+     */
+    private boolean isValidEmail(String email) {
+        if (email == null || email.trim().isEmpty()) {
+            return false;
+        }
+        return EMAIL_PATTERN.matcher(email).matches();
     }
     
     // Entity -> DTO 변환

@@ -6,6 +6,7 @@ import com.plm.api.file.repository.FileRepository;
 import com.plm.api.notification.repository.NotificationRepository;
 import com.plm.api.project.entity.ProjectStatus;
 import com.plm.api.project.repository.ProjectRepository;
+import com.plm.api.task.entity.Task;
 import com.plm.api.task.entity.TaskStatus;
 import com.plm.api.task.repository.TaskRepository;
 import com.plm.api.team.repository.TeamRepository;
@@ -13,6 +14,8 @@ import com.plm.api.user.entity.UserStatus;
 import com.plm.api.user.repository.UserRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
 
 /**
  * Dashboard Service
@@ -83,20 +86,20 @@ public class DashboardService {
         
         // 프로젝트 통계
         stats.setTotalProjects(projectRepository.count());
-        stats.setActiveProjects(projectRepository.countByStatus(ProjectStatus.ACTIVE));
-        stats.setCompletedProjects(projectRepository.countByStatus(ProjectStatus.COMPLETED));
-        stats.setCancelledProjects(projectRepository.countByStatus(ProjectStatus.CANCELLED));
+        //stats.setActiveProjects(projectRepository.countByStatus(ProjectStatus.ACTIVE));
+        //stats.setCompletedProjects(projectRepository.countByStatus(ProjectStatus.COMPLETED));
+        //stats.setCancelledProjects(projectRepository.countByStatus(ProjectStatus.CANCELLED));
         
         // 태스크 통계
         stats.setTotalTasks(taskRepository.count());
-        stats.setTodoTasks(taskRepository.countByStatus(TaskStatus.TODO));
-        stats.setInProgressTasks(taskRepository.countByStatus(TaskStatus.IN_PROGRESS));
-        stats.setReviewTasks(taskRepository.countByStatus(TaskStatus.REVIEW));
-        stats.setDoneTasks(taskRepository.countByStatus(TaskStatus.DONE));
+        //stats.setTodoTasks(taskRepository.countByStatus(TaskStatus.TODO));
+        //stats.setInProgressTasks(taskRepository.countByStatus(TaskStatus.IN_PROGRESS));
+        //stats.setReviewTasks(taskRepository.countByStatus(TaskStatus.REVIEW));
+        //stats.setDoneTasks(taskRepository.countByStatus(TaskStatus.DONE));
         
         // 사용자 통계
         stats.setTotalUsers(userRepository.count());
-        stats.setActiveUsers((long) userRepository.findByStatus(UserStatus.ACTIVE).size());
+        stats.setActiveUsers(userRepository.count()); // 임시로 전체 사용자 수
         
         // 팀 통계
         stats.setTotalTeams(teamRepository.count());
@@ -115,7 +118,7 @@ public class DashboardService {
         DashboardStatsDto stats = new DashboardStatsDto();
         
         // 사용자의 읽지 않은 알림 수
-        stats.setUnreadNotifications(notificationRepository.countUnreadByUserId(userId));
+        //stats.setUnreadNotifications(notificationRepository.countUnreadByUserId(userId));
         
         // TODO: 사용자가 속한 프로젝트의 통계
         // TODO: 사용자에게 할당된 태스크 통계
@@ -125,10 +128,12 @@ public class DashboardService {
     
     // 프로젝트 진행률 계산
     public Integer calculateProjectProgress(Long projectId) {
-        Long totalTasks = taskRepository.countByProjectId(projectId);
-        if (totalTasks == 0) return 0;
+        List<Task> tasks = taskRepository.findByProjectId(projectId);
+        if (tasks.isEmpty()) return 0;
         
-        Long completedTasks = taskRepository.countByProjectIdAndStatus(projectId, TaskStatus.DONE);
-        return (int) ((completedTasks * 100) / totalTasks);
+        long completedTasks = tasks.stream()
+            .filter(task -> task.getStatus() == TaskStatus.DONE)
+            .count();
+        return (int) ((completedTasks * 100) / tasks.size());
     }
 }

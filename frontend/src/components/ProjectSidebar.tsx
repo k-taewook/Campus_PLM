@@ -17,6 +17,7 @@ import {
   Home,
   Edit
 } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Avatar, AvatarFallback } from './ui/avatar';
@@ -52,6 +53,7 @@ export default function ProjectSidebar({
   showSettings,
   onShowSettings
 }: ProjectSidebarProps) {
+  const { user, logout: authLogout } = useAuth(); // AuthContext의 logout 사용
   const { 
     currentUser, 
     logout, 
@@ -229,14 +231,14 @@ export default function ProjectSidebar({
             <Button variant="ghost" className={`w-full ${isCollapsed ? 'justify-center p-2' : 'justify-start p-2'} h-auto`}>
               <Avatar className="w-8 h-8 mr-3">
                 <AvatarFallback className="bg-blue-100 text-blue-600">
-                  {currentUser.name.charAt(0)}
+                  {user?.fullName?.charAt(0) || user?.email?.charAt(0) || 'U'}
                 </AvatarFallback>
               </Avatar>
               {!isCollapsed && (
                 <>
                   <div className="flex-1 text-left">
-                    <div className="font-medium">{currentUser.name}</div>
-                    <div className="text-sm text-gray-500">{currentUser.email}</div>
+                    <div className="font-medium">{user?.fullName || user?.username || '사용자'}</div>
+                    <div className="text-sm text-gray-500">{user?.email}</div>
                   </div>
                 </>
               )}
@@ -252,7 +254,7 @@ export default function ProjectSidebar({
               설정
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={logout} className="text-red-600">
+            <DropdownMenuItem onClick={authLogout} className="text-red-600">
               <LogOut className="w-4 h-4 mr-2" />
               로그아웃
             </DropdownMenuItem>

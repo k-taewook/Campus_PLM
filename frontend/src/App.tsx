@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { ProjectProvider, useProjects } from './contexts/ProjectContext';
-import AuthScreen from './components/AuthScreen';
+import { useAuth } from './contexts/AuthContext';
 import ProjectSidebar from './components/ProjectSidebar';
 import ProjectBoard from './components/ProjectBoard';
 import ProjectDashboard from './components/ProjectDashboard';
@@ -10,17 +10,13 @@ import Settings from './components/Settings';
 import CreateProjectDialog from './components/CreateProjectDialog';
 
 function ProjectApp() {
-  const { isAuthenticated } = useProjects();
+  const { user } = useAuth(); // AuthContext 사용
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [showDashboard, setShowDashboard] = useState(true);
   const [showUserProfile, setShowUserProfile] = useState(false);
   const [showAdminUserManagement, setShowAdminUserManagement] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showCreateProject, setShowCreateProject] = useState(false);
-
-  if (!isAuthenticated) {
-    return <AuthScreen />;
-  }
 
   const handleProjectSelect = (projectId: string | null) => {
     setSelectedProjectId(projectId);
