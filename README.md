@@ -55,12 +55,14 @@
 ├── 🎨 Frontend (React 18 + TypeScript)
 │   ├── Components-based Structure
 │   ├── Context API for State Management
+│   ├── React Router for Client-side Routing
+│   ├── ✅ Authentication System (완료)
 │   └── Axios for API Communication
 │
 └── ⚙️ Backend (Spring Boot 3 + MySQL)
     ├── ✅ Project Module (완료)
     ├── ✅ Task Module (완료)
-    ├── 🚧 User Module (구조 완성)
+    ├── ✅ User Authentication Module (완료)
     ├── 🚧 Team Module (구조 완성)
     ├── 🚧 Comment Module (구조 완성)
     ├── 🚧 Notification Module (구조 완성)
@@ -196,6 +198,7 @@ project/
 | **React** | 18.3.1 | UI 라이브러리 |
 | **TypeScript** | 5.x | 타입 안전성 |
 | **Vite** | 5.x | 빌드 도구 및 개발 서버 |
+| **React Router DOM** | 6.x | 클라이언트 사이드 라우팅 |
 | **Tailwind CSS** | 3.4.x | 유틸리티 CSS 프레임워크 |
 | **Radix UI** | Latest | 접근성 있는 컴포넌트 |
 | **Lucide React** | Latest | 아이콘 라이브러리 |
@@ -207,8 +210,10 @@ project/
 | **Java** | 17 | LTS 버전 |
 | **Spring Boot** | 3.2.3 | 백엔드 프레임워크 |
 | **Spring Data JPA** | 3.2.3 | ORM 및 데이터 접근 |
+| **Spring Security** | 6.2.2 | 보안 및 인증 |
 | **MySQL** | 8.0 | 관계형 데이터베이스 |
 | **Hibernate** | 6.4.4 | JPA 구현체 |
+| **BCrypt** | Included | 비밀번호 암호화 |
 | **Gradle** | 8.7 | 빌드 도구 |
 | **Lombok** | Latest | 보일러플레이트 코드 제거 |
 
@@ -246,23 +251,35 @@ files (id, original_name, stored_name, file_path, file_size, mime_type, file_typ
 - [x] 태스크 할당 및 마감일 관리
 - [x] 태스크 통계 및 필터링
 
-#### 3. 공통 기능
+#### 3. 사용자 인증 시스템 (User Authentication Module)
+- [x] 이메일/비밀번호 기반 회원가입 API
+- [x] 로그인 API (BCrypt 비밀번호 검증)
+- [x] 비밀번호 암호화 (BCryptPasswordEncoder)
+- [x] 사용자 역할 관리 (ADMIN, MANAGER, DEVELOPER, DESIGNER, TESTER, VIEWER)
+- [x] 관리자 계정 자동 생성 (admin@plm.com / admin1234)
+- [x] 로그인/회원가입 UI 컴포넌트
+- [x] AuthContext를 통한 전역 인증 상태 관리
+- [x] localStorage 기반 세션 유지
+- [x] ProtectedRoute를 통한 접근 제어
+- [x] React Router 기반 동적 라우팅
+
+#### 4. 공통 기능
 - [x] CORS 설정으로 프론트엔드-백엔드 통신
 - [x] 샘플 데이터 자동 로딩 (DataLoader)
 - [x] MySQL 데이터베이스 연동
 - [x] RESTful API 설계
 - [x] DTO 기반 데이터 전송
+- [x] Spring Security 의존성 추가
 
 ### 🚧 구조 완성 (구현 대기)
 
-#### 4. 사용자 관리 (User Module)
-**구조**: Controller, Service, Repository, DTO, Entity 완성  
+#### 4. 사용자 고급 기능 (User Module - Advanced)
 **구현 필요**:
-- [ ] JWT 기반 인증/인가
-- [ ] 회원가입 및 로그인 API
-- [ ] 비밀번호 암호화 (BCrypt)
-- [ ] 사용자 프로필 관리
-- [ ] 역할 기반 권한 제어 (ADMIN, MANAGER, DEVELOPER, DESIGNER, TESTER, VIEWER)
+- [ ] JWT 토큰 기반 인증 (현재는 기본 인증만 구현)
+- [ ] Refresh Token 구현
+- [ ] 사용자 프로필 수정 API
+- [ ] 비밀번호 변경/재설정 기능
+- [ ] 역할 기반 권한 제어 (현재 역할만 저장, 실제 권한 체크 미구현)
 - [ ] 사용자 검색 및 필터링
 
 #### 5. 팀 관리 (Team Module)
@@ -341,16 +358,28 @@ GET    /api/tasks/status/{status}      # 상태별 태스크
 GET    /api/tasks/priority/{priority}  # 우선순위별 태스크
 ```
 
+### ✅ 사용자 인증 API (구현 완료)
+
+```http
+POST   /api/users/auth/register   # 회원가입 (이메일, 비밀번호, 이름)
+POST   /api/users/auth/login      # 로그인 (이메일, 비밀번호)
+```
+
+**테스트 계정**:
+- 이메일: `admin@plm.com`
+- 비밀번호: `admin1234`
+- 역할: ADMIN
+
 ### 🚧 구현 예정 API
 
-#### 사용자 관리
+#### 사용자 고급 기능
 ```http
-POST   /api/auth/register         # 회원가입
-POST   /api/auth/login            # 로그인
 POST   /api/auth/logout           # 로그아웃
+POST   /api/auth/refresh          # 토큰 갱신
 GET    /api/users                 # 사용자 목록
 GET    /api/users/{id}            # 사용자 상세
 PUT    /api/users/{id}            # 사용자 수정
+PUT    /api/users/{id}/password   # 비밀번호 변경
 ```
 
 #### 팀 관리
@@ -878,17 +907,29 @@ Table doesn't exist
 ```
 **해결**: `ddl-auto: create-drop` 설정 확인 후 재시작
 
-## 🔄 업데이트 내역
+### 🔄 업데이트 내역
 
-### v1.0.0 (현재)
+### v1.1.0 (2025-10-28) ⭐ NEW
+- ✅ **사용자 인증 시스템 구현 완료**
+  - 이메일/비밀번호 기반 회원가입 & 로그인 API
+  - BCrypt 비밀번호 암호화
+  - Spring Security 의존성 추가
+  - 로그인/회원가입 UI (React)
+  - AuthContext 전역 상태 관리
+  - localStorage 세션 유지
+  - ProtectedRoute 접근 제어
+  - React Router 동적 라우팅
+
+### v1.0.0 (2025-10-27)
 - ✅ Spring Boot + React 풀스택 구조
 - ✅ MySQL 데이터베이스 연동
 - ✅ 프로젝트/태스크 CRUD API
 - ✅ 실시간 대시보드
 - ✅ 샘플 데이터 자동 로딩
 
-### 다음 버전 계획
-- 🔄 사용자 인증 시스템
+### 다음 버전 계획 (v1.2.0)
+- 🔄 JWT 토큰 기반 인증 강화
+- 🔄 팀 관리 시스템
 - 🔄 파일 업로드 기능
 - 🔄 실시간 알림
 - 🔄 고급 검색 필터

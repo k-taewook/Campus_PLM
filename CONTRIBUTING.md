@@ -106,19 +106,40 @@ git push origin feature/user-authentication
 #### ✅ 좋은 예시
 
 ```bash
-# 기능 추가
-feat(user): Add JWT token generation
+# 기능 추가 (인증 시스템 v1.1.0)
+feat(user): Add email/password authentication
+
+feat(user): Implement BCrypt password encryption
+
+feat(frontend): Add login and signup screens
+
+feat(frontend): Implement AuthContext for global state
+
+feat(frontend): Add ProtectedRoute for access control
 
 # 버그 수정
+fix(user): Resolve CORS error in auth endpoints
+
+fix(frontend): Fix icon overlap in input fields
+
 fix(task): Resolve task status update error
 
 # 문서 수정
+docs: Update README with authentication features
+
 docs: Add team collaboration guide to README
 
 # 리팩토링
+refactor(user): Simplify password validation logic
+
 refactor(project): Simplify project status logic
 
+# 스타일 수정
+style(frontend): Replace Tailwind with inline styles for buttons
+
 # 설정 변경
+chore: Add Spring Security dependency
+
 chore: Update MySQL connection pool settings
 
 # 여러 줄 커밋 메시지

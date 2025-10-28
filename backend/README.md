@@ -95,9 +95,23 @@ backend/
 - 우선순위 관리 (LOW, MEDIUM, HIGH, URGENT)
 - 프로젝트별 태스크 조회
 
-### 🚧 3. User Module (구조 완성 - 구현 필요)
+### ✅ 3. User Module (기본 인증 완료 ⭐ NEW)
 **기능**: 사용자 인증 및 권한 관리
-**담당자 TODO**:
+**완료된 기능**:
+- [x] 이메일/비밀번호 기반 회원가입 API (`POST /api/users/auth/register`)
+- [x] 로그인 API (`POST /api/users/auth/login`)
+- [x] BCrypt 비밀번호 암호화
+- [x] 사용자 역할 관리 (ADMIN, MANAGER, DEVELOPER, DESIGNER, TESTER, VIEWER)
+- [x] 관리자 계정 자동 생성 (DataLoader)
+- [x] 사용자 Repository 쿼리 메서드
+
+**추가 구현 필요**:
+- [ ] JWT 토큰 기반 인증 강화
+- [ ] Refresh Token 구현
+- [ ] 사용자 프로필 수정 API
+- [ ] 비밀번호 변경/재설정
+- [ ] 사용자 검색 및 필터링
+- [ ] 역할 기반 접근 제어 (현재 역할만 저장, 실제 권한 체크 미구현)
 - [ ] JWT 기반 인증/인가 구현
 - [ ] 회원가입 API (비밀번호 암호화)
 - [ ] 로그인 API (토큰 발급)
