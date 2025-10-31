@@ -11,7 +11,7 @@ import { Badge } from './ui/badge';
 import { Search } from 'lucide-react';
 import { useProjects } from '../contexts/ProjectContext';
 import { useAuth } from '../contexts/AuthContext';
-import api from '../services/api';
+import api, { plmApi } from '../services/api';
 
 interface CreateProjectDialogProps {
   open: boolean;
@@ -73,6 +73,25 @@ export default function CreateProjectDialog({ open, onOpenChange, onProjectCreat
       console.log('프로젝트 생성 요청:', projectData);
       const response = await api.post('/projects', projectData);
       console.log('프로젝트 생성 성공:', response.data);
+
+      // 생성 직후 멤버 일괄 추가 (리드 + 선택 멤버)
+      try {
+        const projectId: number = Number(response.data.id);
+        const uniqueMemberIds = Array.from(new Set(formData.teamMembers));
+        const leadId = formData.leadId || currentUser?.id || '';
+        const membersPayload: { userId: number; role: 'LEAD' | 'ADMIN' | 'DEVELOPER' | 'DESIGNER' | 'TESTER' | 'VIEWER' }[] = [];
+        if (leadId) {
+          membersPayload.push({ userId: Number(leadId), role: 'LEAD' });
+        }
+        uniqueMemberIds
+          .filter(uid => uid && uid !== leadId)
+          .forEach(uid => membersPayload.push({ userId: Number(uid), role: 'VIEWER' }));
+        if (membersPayload.length > 0 && !Number.isNaN(projectId)) {
+          await plmApi.addProjectMembersBulk(projectId, membersPayload);
+        }
+      } catch (e) {
+        console.error('프로젝트 멤버 일괄 추가 실패:', e);
+      }
 
       // Reset form
       setFormData({
