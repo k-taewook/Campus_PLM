@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, ReactNode, useEffect } from 'react';
+import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { useAuth } from './AuthContext';
 import api from '../services/api';
 
@@ -8,6 +8,7 @@ export interface User {
   email: string;
   avatar?: string;
   role: 'admin' | 'manager' | 'member';
+  dbRole?: 'ADMIN' | 'MANAGER' | 'DEVELOPER' | 'DESIGNER' | 'TESTER' | 'VIEWER';
   createdAt: string;
   lastActive: string;
 }
@@ -113,6 +114,7 @@ interface ProjectContextType {
   projects: Project[];
   activities: ActivityLog[];
   isAuthenticated: boolean;
+  reloadUsers: () => Promise<void>;
   
   // Auth functions
   login: (email: string, password: string) => Promise<boolean>;
@@ -197,6 +199,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
         id: user.id.toString(),
         name: user.fullName || user.username || '이름 없음',
         email: user.email || '',
+        dbRole: user.role,
         role: user.role === 'ADMIN' ? 'admin' : 
               user.role === 'MANAGER' ? 'manager' : 'member',
         createdAt: user.createdAt || new Date().toISOString(),
@@ -210,6 +213,10 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const reloadUsers = async () => {
+    await loadUsers();
+  };
+
   // AuthContext의 사용자 정보로 currentUser 업데이트
   useEffect(() => {
     if (authUser) {
@@ -219,6 +226,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
         name: authUser.fullName,
         email: authUser.email,
         avatar: authUser.profileImageUrl,
+        dbRole: authUser.role,
         role: authUser.role === 'ADMIN' ? 'admin' : 
               authUser.role === 'MANAGER' ? 'manager' : 'member',
         createdAt: new Date().toISOString(),
@@ -1264,6 +1272,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       projects,
       activities,
       isAuthenticated,
+      reloadUsers,
       login,
       register,
       logout,

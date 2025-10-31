@@ -42,6 +42,7 @@ import { Textarea } from './ui/textarea';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
 import { useProjects } from '../contexts/ProjectContext';
 import UserProfile from './UserProfile';
+import { plmApi } from '../services/api';
 
 interface AdminUserManagementProps {
   // No props needed
@@ -53,7 +54,8 @@ export default function AdminUserManagement() {
     users, 
     projects, 
     activities,
-    updateMemberRole 
+    updateMemberRole, 
+    reloadUsers
   } = useProjects();
   
   const [activeTab, setActiveTab] = useState('overview');
@@ -70,8 +72,9 @@ export default function AdminUserManagement() {
   const [newUser, setNewUser] = useState({
     name: '',
     email: '',
-    role: 'member' as 'admin' | 'manager' | 'member',
-    status: 'active' as 'active' | 'inactive' | 'suspended'
+    password: '',
+    role: 'VIEWER' as 'ADMIN' | 'MANAGER' | 'DEVELOPER' | 'DESIGNER' | 'TESTER' | 'VIEWER',
+    status: 'ACTIVE' as 'ACTIVE' | 'INACTIVE' | 'SUSPENDED'
   });
 
   // 편집 중인 사용자 폼
@@ -79,12 +82,16 @@ export default function AdminUserManagement() {
     id: '',
     name: '',
     email: '',
-    role: 'member' as 'admin' | 'manager' | 'member',
-    status: 'active' as 'active' | 'inactive' | 'suspended'
+    role: 'VIEWER' as 'ADMIN' | 'MANAGER' | 'DEVELOPER' | 'DESIGNER' | 'TESTER' | 'VIEWER',
+    status: 'ACTIVE' as 'ACTIVE' | 'INACTIVE' | 'SUSPENDED'
   });
 
+  const ROLE_OPTIONS: Array<'ADMIN' | 'MANAGER' | 'DEVELOPER' | 'DESIGNER' | 'TESTER' | 'VIEWER'> = [
+    'ADMIN', 'MANAGER', 'DEVELOPER', 'DESIGNER', 'TESTER', 'VIEWER'
+  ];
+
   // 권한 확인
-  const isAdmin = currentUser?.role === 'admin';
+  const isAdmin = (currentUser?.role || '').toUpperCase() === 'ADMIN';
   const canManageUsers = isAdmin;
 
   if (!canManageUsers) {
@@ -179,25 +186,37 @@ export default function AdminUserManagement() {
 
   const getRoleIcon = (role: string) => {
     switch (role) {
-      case 'admin': return Shield;
-      case 'manager': return Users;
+      case 'ADMIN': return Shield;
+      case 'MANAGER': return Users;
+      case 'DEVELOPER': return Users;
+      case 'DESIGNER': return Users;
+      case 'TESTER': return Users;
+      case 'VIEWER': return Users;
       default: return Users;
     }
   };
 
   const getRoleColor = (role: string) => {
     switch (role) {
-      case 'admin': return 'bg-red-100 text-red-800';
-      case 'manager': return 'bg-blue-100 text-blue-800';
+      case 'ADMIN': return 'bg-red-100 text-red-800';
+      case 'MANAGER': return 'bg-blue-100 text-blue-800';
+      case 'DEVELOPER': return 'bg-emerald-100 text-emerald-800';
+      case 'DESIGNER': return 'bg-pink-100 text-pink-800';
+      case 'TESTER': return 'bg-yellow-100 text-yellow-800';
+      case 'VIEWER': return 'bg-gray-100 text-gray-800';
       default: return 'bg-gray-100 text-gray-800';
     }
   };
 
   const getRoleLabel = (role: string) => {
     switch (role) {
-      case 'admin': return '관리자';
-      case 'manager': return '매니저';
-      default: return '멤버';
+      case 'ADMIN': return '관리자';
+      case 'MANAGER': return '매니저';
+      case 'DEVELOPER': return '개발자';
+      case 'DESIGNER': return '디자이너';
+      case 'TESTER': return '테스터';
+      case 'VIEWER': return '뷰어';
+      default: return role;
     }
   };
 
@@ -240,11 +259,25 @@ export default function AdminUserManagement() {
     return `${Math.floor(diffInHours / (24 * 7))}주 전`;
   };
 
-  const handleCreateUser = () => {
-    if (newUser.name && newUser.email) {
-      // 실제 구현에서는 API 호출
-      console.log('새 사용자 생성:', newUser);
-      setNewUser({ name: '', email: '', role: 'member', status: 'active' });
+  const handleCreateUser = async () => {
+    if (!newUser.name || !newUser.email) return;
+    const passwordToUse = newUser.password && newUser.password.length >= 8 ? newUser.password : 'Temp1234!';
+    try {
+      // 1) 회원 등록 (비밀번호 포함)
+      const created = await plmApi.registerUser({
+        email: newUser.email,
+        password: passwordToUse,
+        fullName: newUser.name,
+      });
+      // 2) 선택한 역할로 업데이트 (기본 VIEWER가 아닐 때)
+      if (newUser.role && newUser.role !== 'VIEWER') {
+        await plmApi.updateUser(Number(created.id), { role: newUser.role } as any);
+      }
+      await reloadUsers();
+    } catch (e) {
+      console.error('사용자 생성 실패', e);
+    } finally {
+      setNewUser({ name: '', email: '', password: '', role: 'VIEWER', status: 'ACTIVE' });
       setShowCreateDialog(false);
     }
   };
@@ -254,26 +287,42 @@ export default function AdminUserManagement() {
       id: user.id,
       name: user.name,
       email: user.email,
-      role: user.role,
-      status: getStatusLabel(user) === '활성' ? 'active' : 'inactive'
+      role: (user.dbRole || (typeof user.role === 'string' ? user.role.toUpperCase() : 'VIEWER')) as typeof editingUser.role,
+      status: getStatusLabel(user) === '활성' ? 'ACTIVE' : 'INACTIVE'
     });
     setShowEditDialog(true);
   };
 
-  const handleUpdateUser = () => {
-    // 실제 구현에서는 API 호출
-    console.log('사용자 정보 업데이트:', editingUser);
-    setShowEditDialog(false);
+  const handleUpdateUser = async () => {
+    try {
+      await plmApi.updateUser(Number(editingUser.id), {
+        fullName: editingUser.name,
+        email: editingUser.email,
+        role: editingUser.role,
+      } as any);
+      await reloadUsers();
+    } catch (e) {
+      console.error('사용자 정보 업데이트 실패', e);
+    } finally {
+      setShowEditDialog(false);
+    }
   };
 
-  const handleDeleteUser = (userId: string) => {
-    // 실제 구현에서는 API 호출
-    console.log('사용자 삭제:', userId);
+  const handleDeleteUser = async (userId: string) => {
+    try {
+      await plmApi.deleteUser(Number(userId));
+      await reloadUsers();
+    } catch (e) {
+      console.error('사용자 삭제 실패', e);
+    }
   };
 
-  const handleRoleChange = (userId: string, newRole: string) => {
-    // 실제 구현에서는 API 호출
-    console.log('역할 변경:', userId, newRole);
+  const handleRoleChange = async (userId: string, newRole: typeof ROLE_OPTIONS[number]) => {
+    try {
+      await plmApi.updateUser(Number(userId), { role: newRole } as any);
+    } catch (e) {
+      console.error('역할 변경 실패', e);
+    }
   };
 
   const handleViewProfile = (userId: string) => {
@@ -285,10 +334,6 @@ export default function AdminUserManagement() {
     return (
       <UserProfile 
         userId={selectedUserId}
-        onBack={() => {
-          setShowUserProfile(false);
-          setSelectedUserId(null);
-        }}
       />
     );
   }
@@ -346,6 +391,16 @@ export default function AdminUserManagement() {
                   />
                 </div>
                 <div>
+                  <Label htmlFor="userPassword">임시 비밀번호</Label>
+                  <Input
+                    id="userPassword"
+                    type="password"
+                    value={newUser.password}
+                    onChange={(e) => setNewUser({...newUser, password: e.target.value})}
+                    placeholder="(선택) 최소 8자, 미입력 시 Temp1234! 사용"
+                  />
+                </div>
+                <div>
                   <Label htmlFor="userRole">역할</Label>
                   <Select 
                     value={newUser.role} 
@@ -355,9 +410,9 @@ export default function AdminUserManagement() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="member">멤버</SelectItem>
-                      <SelectItem value="manager">매니저</SelectItem>
-                      <SelectItem value="admin">관리자</SelectItem>
+                      {ROLE_OPTIONS.map((r) => (
+                        <SelectItem key={r} value={r}>{getRoleLabel(r)}</SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -522,9 +577,10 @@ export default function AdminUserManagement() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredAndSortedUsers.map((user) => {
+                  {filteredAndSortedUsers.map((user: any) => {
                     const userStats = getUserStats(user.id);
-                    const RoleIcon = getRoleIcon(user.role);
+                    const roleForBadge = (user.dbRole || (user.role || '').toUpperCase());
+                    const RoleIcon = getRoleIcon(roleForBadge);
                     
                     return (
                       <TableRow key={user.id}>
@@ -542,9 +598,9 @@ export default function AdminUserManagement() {
                           </div>
                         </TableCell>
                         <TableCell>
-                          <Badge className={getRoleColor(user.role)}>
+                          <Badge className={getRoleColor(roleForBadge)}>
                             <RoleIcon className="w-3 h-3 mr-1" />
-                            {getRoleLabel(user.role)}
+                            {getRoleLabel(roleForBadge)}
                           </Badge>
                         </TableCell>
                         <TableCell>
@@ -574,15 +630,6 @@ export default function AdminUserManagement() {
                                 정보 수정
                               </DropdownMenuItem>
                               <DropdownMenuSeparator />
-                              <DropdownMenuItem onClick={() => handleRoleChange(user.id, 'admin')}>
-                                <Shield className="w-4 h-4 mr-2" />
-                                관리자로 변경
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => handleRoleChange(user.id, 'member')}>
-                                <Users className="w-4 h-4 mr-2" />
-                                멤버로 변경
-                              </DropdownMenuItem>
-                              <DropdownMenuSeparator />
                               <AlertDialog>
                                 <AlertDialogTrigger asChild>
                                   <DropdownMenuItem 
@@ -597,7 +644,7 @@ export default function AdminUserManagement() {
                                   <AlertDialogHeader>
                                     <AlertDialogTitle>사용자 삭제 확인</AlertDialogTitle>
                                     <AlertDialogDescription>
-                                      '{user.name}' 사용자를 정말 삭��하시겠습니까? 
+                                      '{user.name}' 사용자를 정말 삭제하시겠습니까? 
                                       이 작업은 되돌릴 수 없습니다.
                                     </AlertDialogDescription>
                                   </AlertDialogHeader>
@@ -786,9 +833,9 @@ export default function AdminUserManagement() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="member">멤버</SelectItem>
-                  <SelectItem value="manager">매니저</SelectItem>
-                  <SelectItem value="admin">관리자</SelectItem>
+                  {ROLE_OPTIONS.map((r) => (
+                    <SelectItem key={r} value={r}>{getRoleLabel(r)}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>

@@ -63,6 +63,27 @@ export interface Task {
 
 // API 서비스 함수들
 export const plmApi = {
+  // 사용자 등록 (회원가입 API 사용)
+  registerUser: async (params: { email: string; password: string; fullName: string; }) => {
+    const response = await api.post('/users/auth/register', params);
+    return response.data;
+  },
+  // 사용자 목록 가져오기
+  getUsers: async (): Promise<User[]> => {
+    const response = await api.get('/users');
+    return response.data;
+  },
+
+  // 사용자 업데이트
+  updateUser: async (id: number, user: Partial<User>): Promise<User> => {
+    const response = await api.put(`/users/${id}`, user);
+    return response.data;
+  },
+
+  // 사용자 삭제
+  deleteUser: async (id: number): Promise<void> => {
+    await api.delete(`/users/${id}`);
+  },
   // 대시보드 요약 정보 가져오기
   getDashboardSummary: async () => {
     const response = await api.get('/dashboard/summary');
@@ -147,3 +168,20 @@ export const plmApi = {
 };
 
 export default api;
+
+// 사용자 타입 정의 (백엔드 UserDto와 호환)
+export interface User {
+  id: number;
+  username: string;
+  email: string;
+  fullName: string;
+  profileImageUrl?: string;
+  role: 'ADMIN' | 'MANAGER' | 'DEVELOPER' | 'DESIGNER' | 'TESTER' | 'VIEWER';
+  status: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED' | 'DELETED';
+  phoneNumber?: string;
+  department?: string;
+  position?: string;
+  lastLoginAt?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
