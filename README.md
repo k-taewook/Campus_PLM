@@ -310,15 +310,22 @@ files (id, original_name, stored_name, file_path, file_size, mime_type, file_typ
 - [ ] 이메일 알림 연동
 - [ ] 알림 설정 관리
 
-#### 8. 파일 관리 (File Module)
-**구조**: Controller, Service, Repository, DTO, Entity 완성  
-**구현 필요**:
-- [ ] 파일 업로드/다운로드 API
-- [ ] 프로젝트/태스크별 첨부파일 관리
-- [ ] 파일 타입별 필터링
-- [ ] 이미지 썸네일 생성
-- [ ] 파일 크기 제한 및 검증
-- [ ] AWS S3 연동 (선택)
+#### 8. 파일 관리 (File Module) ✅ **완료**
+**Backend 구현**: Controller, Service, Repository, DTO, Entity 완성  
+**Frontend 구현**: FileUploadZone, FileList, FileManagement 완성  
+**완료된 기능**:
+- [x] 파일 업로드 API (Multipart File Upload, 최대 10MB)
+- [x] 파일 다운로드 API (스트리밍 다운로드)
+- [x] 프로젝트/태스크별 첨부파일 관리
+- [x] 파일 타입 자동 감지 (IMAGE, VIDEO, AUDIO, DOCUMENT, CODE, ARCHIVE, OTHER)
+- [x] 파일 목록 조회 (프로젝트별, 태스크별, 사용자별)
+- [x] 파일 삭제 (물리 파일 + DB 레코드)
+- [x] 다운로드 횟수 추적
+- [x] 드래그 앤 드롭 파일 업로드 UI
+- [x] 파일 크기 및 타입 검증
+- [x] 파일 미리보기 (이미지)
+- [x] 로컬 스토리지 (./uploads 디렉토리)
+**접근 방법**: `/files` 경로로 이동하여 데모 페이지 확인
 
 #### 9. 대시보드 (Dashboard Module)
 **구조**: Controller, Service, DTO 완성  
@@ -370,6 +377,29 @@ POST   /api/users/auth/login      # 로그인 (이메일, 비밀번호)
 - 비밀번호: `admin1234`
 - 역할: ADMIN
 
+### ✅ 파일 관리 API (구현 완료)
+
+```http
+POST   /api/files/upload                    # 파일 업로드 (Multipart)
+GET    /api/files/{id}                      # 파일 메타데이터 조회
+GET    /api/files/{id}/download             # 파일 다운로드 (스트리밍)
+GET    /api/files/project/{projectId}       # 프로젝트 파일 목록
+GET    /api/files/task/{taskId}             # 태스크 파일 목록
+GET    /api/files/user/{uploaderId}         # 사용자 업로드 파일 목록
+DELETE /api/files/{id}                      # 파일 삭제
+```
+
+**업로드 파라미터**:
+- `file`: MultipartFile (필수)
+- `uploaderId`: 업로더 ID (필수)
+- `projectId`: 프로젝트 ID (선택)
+- `taskId`: 태스크 ID (선택)
+
+**파일 제한**:
+- 최대 파일 크기: 10MB
+- 저장 위치: `./uploads` 디렉토리
+- 지원 타입: IMAGE, VIDEO, AUDIO, DOCUMENT, CODE, ARCHIVE, OTHER
+
 ### 🚧 구현 예정 API
 
 #### 사용자 고급 기능
@@ -406,14 +436,6 @@ GET    /api/notifications         # 알림 목록
 GET    /api/notifications/unread  # 읽지 않은 알림
 PUT    /api/notifications/{id}/read    # 알림 읽음 처리
 PUT    /api/notifications/read-all     # 전체 읽음 처리
-```
-
-#### 파일 관리
-```http
-POST   /api/files/upload          # 파일 업로드
-GET    /api/files/{id}/download   # 파일 다운로드
-GET    /api/files/project/{projectId}  # 프로젝트 파일 목록
-DELETE /api/files/{id}            # 파일 삭제
 ```
 
 #### 대시보드
@@ -909,7 +931,21 @@ Table doesn't exist
 
 ### 🔄 업데이트 내역
 
-### v1.1.0 (2025-10-28) ⭐ NEW
+### v1.2.0 (2025-10-31) ⭐ NEW
+- ✅ **파일 관리 시스템 구현 완료**
+  - Multipart 파일 업로드 API (최대 10MB)
+  - 스트리밍 파일 다운로드
+  - 프로젝트/태스크별 파일 관리
+  - 자동 파일 타입 감지 (7가지 타입)
+  - 다운로드 횟수 추적
+  - 드래그 앤 드롭 업로드 UI (FileUploadZone)
+  - 파일 목록 표시 UI (FileList)
+  - 통합 파일 관리 컴포넌트 (FileManagement)
+  - 파일 미리보기 (이미지)
+  - 로컬 스토리지 (./uploads)
+  - `/files` 데모 페이지 추가
+
+### v1.1.0 (2025-10-28)
 - ✅ **사용자 인증 시스템 구현 완료**
   - 이메일/비밀번호 기반 회원가입 & 로그인 API
   - BCrypt 비밀번호 암호화
@@ -927,11 +963,12 @@ Table doesn't exist
 - ✅ 실시간 대시보드
 - ✅ 샘플 데이터 자동 로딩
 
-### 다음 버전 계획 (v1.2.0)
-- 🔄 JWT 토큰 기반 인증 강화
-- 🔄 팀 관리 시스템
-- 🔄 파일 업로드 기능
-- 🔄 실시간 알림
+### 다음 버전 계획 (v1.3.0)
+- 🔄 팀 관리 시스템 (TeamService, TeamController)
+- 🔄 댓글 시스템 (CommentService, 대댓글 지원)
+- 🔄 대시보드 통계 (차트 시각화)
+- 🔄 JWT 토큰 기반 인증 강화 (선택)
+- 🔄 실시간 알림 (WebSocket/SSE)
 - 🔄 고급 검색 필터
 
 ## 🤝 기여 가이드

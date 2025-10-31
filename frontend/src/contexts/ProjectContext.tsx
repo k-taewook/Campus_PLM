@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { useAuth } from './AuthContext';
+import api from '../services/api';
 
 export interface User {
   id: string;
@@ -179,52 +180,35 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   const authContext = useAuth();
   const authUser = authContext?.user;
 
-  // Mock users
-  const [users, setUsers] = useState<User[]>([
-    {
-      id: 'user-1',
-      name: '김프로젝트',
-      email: 'project@example.com',
-      role: 'admin',
-      createdAt: '2024-01-01',
-      lastActive: new Date().toISOString()
-    },
-    {
-      id: 'user-2',
-      name: '이개발자',
-      email: 'dev@example.com',
-      role: 'member',
-      createdAt: '2024-01-15',
-      lastActive: '2024-03-10T14:30:00Z'
-    },
-    {
-      id: 'user-3',
-      name: '박디자이너',
-      email: 'design@example.com',
-      role: 'member',
-      createdAt: '2024-02-01',
-      lastActive: '2024-03-10T16:45:00Z'
-    },
-    {
-      id: 'user-4',
-      name: '최매니저',
-      email: 'manager@example.com',
-      role: 'manager',
-      createdAt: '2024-01-10',
-      lastActive: '2024-03-11T09:15:00Z'
-    },
-    {
-      id: 'user-5',
-      name: '일반사용자',
-      email: 'user@example.com',
-      role: 'member',
-      createdAt: '2024-03-15',
-      lastActive: new Date().toISOString()
-    }
-  ]);
-
-  const [currentUser, setCurrentUser] = useState<User | null>(users[0]);
+  // Users - API에서 로드
+  const [users, setUsers] = useState<User[]>([]);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(true);
+
+  // 사용자 목록 로드
+  useEffect(() => {
+    loadUsers();
+  }, []);
+
+  const loadUsers = async () => {
+    try {
+      const response = await api.get('/users');
+      const apiUsers = response.data.map((user: any) => ({
+        id: user.id.toString(),
+        name: user.fullName || user.username || '이름 없음',
+        email: user.email || '',
+        role: user.role === 'ADMIN' ? 'admin' : 
+              user.role === 'MANAGER' ? 'manager' : 'member',
+        createdAt: user.createdAt || new Date().toISOString(),
+        lastActive: user.updatedAt || new Date().toISOString()
+      }));
+      setUsers(apiUsers);
+    } catch (error) {
+      console.error('사용자 목록 로드 실패:', error);
+      // 실패해도 빈 배열로 설정
+      setUsers([]);
+    }
+  };
 
   // AuthContext의 사용자 정보로 currentUser 업데이트
   useEffect(() => {

@@ -10,14 +10,18 @@ import { Avatar, AvatarFallback } from './ui/avatar';
 import { Badge } from './ui/badge';
 import { Search } from 'lucide-react';
 import { useProjects } from '../contexts/ProjectContext';
+import { useAuth } from '../contexts/AuthContext';
+import api from '../services/api';
 
 interface CreateProjectDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onProjectCreated?: () => void;
 }
 
-export default function CreateProjectDialog({ open, onOpenChange }: CreateProjectDialogProps) {
-  const { createProject, users, currentUser, projects } = useProjects();
+export default function CreateProjectDialog({ open, onOpenChange, onProjectCreated }: CreateProjectDialogProps) {
+  const { users, currentUser, projects } = useProjects();
+  const { user: authUser } = useAuth();
   
   const [formData, setFormData] = useState({
     name: '',
@@ -31,63 +35,70 @@ export default function CreateProjectDialog({ open, onOpenChange }: CreateProjec
 
   const [nameError, setNameError] = useState('');
   const [memberSearchQuery, setMemberSearchQuery] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!formData.name.trim() || !currentUser) return;
+    if (!formData.name.trim() || !authUser) return;
 
-    // Check for duplicate project names
-    const existingProject = projects.find(p => 
-      p.name.toLowerCase() === formData.name.trim().toLowerCase()
-    );
-    
-    if (existingProject) {
-      setNameError('같은 이름의 프로젝트가 이미 존재합니다.');
-      return;
-    }
-
-    // Generate project key from name
-    const generateProjectKey = (name: string) => {
-      const words = name.trim().split(/\s+/);
-      if (words.length === 1) {
-        return words[0].substring(0, 4).toUpperCase();
-      } else {
-        return words.slice(0, 3).map(word => word.charAt(0)).join('').toUpperCase();
-      }
-    };
-
-    createProject({
-      key: generateProjectKey(formData.name.trim()),
-      name: formData.name.trim(),
-      description: formData.description.trim(),
-      status: 'planning',
-      type: formData.type,
-      leadId: formData.leadId,
-      teamMembers: formData.teamMembers.filter(Boolean),
-      startDate: formData.startDate || undefined,
-      endDate: formData.endDate || undefined,
-      settings: {
-        allowComments: true,
-        allowFileUploads: true,
-        requireApproval: false,
-        notifyOnUpdates: true
-      }
-    });
-
-    // Reset form
-    setFormData({
-      name: '',
-      description: '',
-      type: 'software',
-      leadId: currentUser.id,
-      teamMembers: [currentUser.id],
-      startDate: '',
-      endDate: ''
-    });
+    setIsSubmitting(true);
     setNameError('');
-    setMemberSearchQuery('');
-    onOpenChange(false);
+
+    try {
+      // 날짜를 LocalDateTime 형식으로 변환 (YYYY-MM-DDTHH:MM:SS)
+      const formatToLocalDateTime = (dateString: string) => {
+        if (!dateString) return null;
+        // 날짜만 있으면 시간 추가
+        if (dateString.length === 10) {
+          return dateString + 'T00:00:00';
+        }
+        return dateString;
+      };
+
+      const now = new Date();
+      const defaultStartDate = now.toISOString().split('.')[0]; // 2025-10-31T14:30:00
+      const futureDate = new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000);
+      const defaultEndDate = futureDate.toISOString().split('.')[0];
+
+      const projectData = {
+        name: formData.name.trim(),
+        description: formData.description.trim() || null,
+        status: 'PLANNING',
+        managerId: authUser.id,
+        startDate: formatToLocalDateTime(formData.startDate) || defaultStartDate,
+        endDate: formatToLocalDateTime(formData.endDate) || defaultEndDate
+      };
+
+      console.log('프로젝트 생성 요청:', projectData);
+      const response = await api.post('/projects', projectData);
+      console.log('프로젝트 생성 성공:', response.data);
+
+      // Reset form
+      setFormData({
+        name: '',
+        description: '',
+        type: 'software',
+        leadId: authUser.id.toString(),
+        teamMembers: [authUser.id.toString()],
+        startDate: '',
+        endDate: ''
+      });
+      setMemberSearchQuery('');
+      
+      // 부모 컴포넌트에 알림 (새로고침)
+      if (onProjectCreated) {
+        onProjectCreated();
+      }
+      
+      onOpenChange(false);
+      alert('프로젝트가 생성되었습니다!');
+    } catch (error: any) {
+      console.error('프로젝트 생성 실패:', error);
+      setNameError(error.response?.data?.message || '프로젝트 생성에 실패했습니다.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleTeamMemberToggle = (userId: string) => {
@@ -144,7 +155,7 @@ export default function CreateProjectDialog({ open, onOpenChange }: CreateProjec
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto custom-scrollbar">
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle>새 프로젝트 생성</DialogTitle>
           <DialogDescription>
@@ -152,7 +163,8 @@ export default function CreateProjectDialog({ open, onOpenChange }: CreateProjec
           </DialogDescription>
         </DialogHeader>
         
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <div className="overflow-y-auto custom-scrollbar flex-1">
+        <form id="create-project-form" onSubmit={handleSubmit} className="space-y-6">
           {/* Basic Info */}
           <div>
             <Label htmlFor="name">프로젝트 이름 *</Label>
@@ -225,7 +237,7 @@ export default function CreateProjectDialog({ open, onOpenChange }: CreateProjec
 
             <div>
               <Label htmlFor="lead">프로젝트 리드</Label>
-              <Select value={formData.leadId} onValueChange={(value) => setFormData({ ...formData, leadId: value })}>
+              <Select value={formData.leadId} onValueChange={(value: string) => setFormData({ ...formData, leadId: value })}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -389,17 +401,18 @@ export default function CreateProjectDialog({ open, onOpenChange }: CreateProjec
               </div>
             </div>
           </div>
+        </form>
+        </div>
 
           {/* Actions */}
-          <div className="flex justify-end gap-2 pt-4 border-t">
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+          <div className="flex justify-end gap-2 pt-4 border-t flex-shrink-0">
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isSubmitting}>
               취소
             </Button>
-            <Button type="submit" disabled={!formData.name.trim()}>
-              프로젝트 생성
+            <Button type="submit" form="create-project-form" disabled={!formData.name.trim() || isSubmitting}>
+              {isSubmitting ? '생성 중...' : '프로젝트 생성'}
             </Button>
           </div>
-        </form>
       </DialogContent>
     </Dialog>
   );

@@ -37,6 +37,9 @@ public class DataLoader implements CommandLineRunner {
         // Admin 계정 생성 (없을 경우에만)
         loadAdminUser();
         
+        // 샘플 사용자 생성
+        loadSampleUsers();
+        
         // 샘플 데이터가 이미 있는지 확인
         if (projectRepository.count() == 0) {
             loadSampleData();
@@ -58,6 +61,44 @@ public class DataLoader implements CommandLineRunner {
             
             userRepository.save(admin);
             System.out.println("Admin 계정 생성 완료: admin@plm.com / admin1234");
+        }
+    }
+    
+    private void loadSampleUsers() {
+        // 매니저 계정들
+        createUserIfNotExists("manager1@plm.com", "manager1", "password123", "김매니저", UserRole.MANAGER);
+        createUserIfNotExists("manager2@plm.com", "manager2", "password123", "이매니저", UserRole.MANAGER);
+        
+        // 개발자 계정들
+        createUserIfNotExists("developer1@plm.com", "developer1", "password123", "박개발", UserRole.DEVELOPER);
+        createUserIfNotExists("developer2@plm.com", "developer2", "password123", "최개발", UserRole.DEVELOPER);
+        createUserIfNotExists("developer3@plm.com", "developer3", "password123", "정개발", UserRole.DEVELOPER);
+        
+        // 디자이너 계정들
+        createUserIfNotExists("designer1@plm.com", "designer1", "password123", "강디자인", UserRole.DESIGNER);
+        createUserIfNotExists("designer2@plm.com", "designer2", "password123", "윤디자인", UserRole.DESIGNER);
+        
+        // 기타 역할
+        createUserIfNotExists("analyst1@plm.com", "analyst1", "password123", "한분석가", UserRole.DEVELOPER);
+        createUserIfNotExists("dba1@plm.com", "dba1", "password123", "조DB", UserRole.DEVELOPER);
+        createUserIfNotExists("dba2@plm.com", "dba2", "password123", "임DB", UserRole.DEVELOPER);
+        
+        System.out.println("샘플 사용자 생성 완료: 10명의 사용자");
+    }
+    
+    private void createUserIfNotExists(String email, String username, String password, String fullName, UserRole role) {
+        if (userRepository.findByEmail(email).isEmpty()) {
+            User user = new User();
+            user.setEmail(email);
+            user.setUsername(username);
+            user.setPassword(passwordEncoder.encode(password));
+            user.setFullName(fullName);
+            user.setRole(role);
+            user.setStatus(UserStatus.ACTIVE);
+            user.setCreatedAt(LocalDateTime.now());
+            user.setUpdatedAt(LocalDateTime.now());
+            
+            userRepository.save(user);
         }
     }
     

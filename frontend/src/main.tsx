@@ -5,6 +5,8 @@ import App from "./App.tsx";
 import LoginScreen from "./components/LoginScreen.tsx";
 import SignupScreen from "./components/SignupScreen.tsx";
 import ProtectedRoute from "./components/ProtectedRoute.tsx";
+import FileManagementDemo from "./pages/FileManagementDemo.tsx";
+import ProjectList from "./pages/ProjectList.tsx";
 import "./index.css";
 
 createRoot(document.getElementById("root")!).render(
@@ -13,6 +15,22 @@ createRoot(document.getElementById("root")!).render(
       <Routes>
         <Route path="/login" element={<LoginScreen />} />
         <Route path="/signup" element={<SignupScreen />} />
+        <Route
+          path="/projects"
+          element={
+            <ProtectedRoute>
+              <ProjectList />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/files"
+          element={
+            <ProtectedRoute>
+              <FileManagementDemo />
+            </ProtectedRoute>
+          }
+        />
         <Route
           path="/*"
           element={

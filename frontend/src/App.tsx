@@ -110,6 +110,16 @@ function ProjectApp() {
       <CreateProjectDialog 
         open={showCreateProject}
         onOpenChange={setShowCreateProject}
+        onProjectCreated={() => {
+          // 프로젝트 생성 후 대시보드로 이동
+          setSelectedProjectId(null);
+          setShowDashboard(true);
+          setShowUserProfile(false);
+          setShowAdminUserManagement(false);
+          setShowSettings(false);
+          // 페이지 새로고침으로 데이터 다시 로드
+          window.location.reload();
+        }}
       />
     </div>
   );

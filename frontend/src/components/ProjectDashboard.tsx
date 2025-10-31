@@ -30,6 +30,33 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/t
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from './ui/dropdown-menu';
 import { useProjects, type Project, type Task } from '../contexts/ProjectContext';
 import EditProjectDialog from './EditProjectDialog';
+import api from '../services/api';
+
+interface ApiProject {
+  id: number;
+  projectKey: string;
+  name: string;
+  description: string;
+  status: string;
+  managerId: number;
+  startDate: string;
+  endDate: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface ApiTask {
+  id: number;
+  title: string;
+  description: string;
+  status: string;
+  priority: string;
+  projectId: number;
+  assigneeId: number;
+  dueDate: string;
+  createdAt: string;
+  updatedAt: string;
+}
 
 interface ProjectDashboardProps {
   onProjectSelect: (projectId: string) => void;
@@ -53,10 +80,98 @@ export default function ProjectDashboard({ onProjectSelect, onCreateProject }: P
   const [priorityFilter, setPriorityFilter] = useState('all');
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [showEditDialog, setShowEditDialog] = useState(false);
+  
+  // API에서 가져온 프로젝트와 태스크
+  const [apiProjects, setApiProjects] = useState<ApiProject[]>([]);
+  const [apiTasks, setApiTasks] = useState<ApiTask[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const myProjects = getMyProjects();
-  const assignedTasks = getAssignedTasks();
-  const upcomingDeadlines = getUpcomingDeadlines();
+  // API에서 프로젝트와 태스크 로드
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        const [projectsRes, tasksRes] = await Promise.all([
+          api.get('/projects'),
+          api.get('/tasks')
+        ]);
+        setApiProjects(projectsRes.data);
+        setApiTasks(tasksRes.data);
+      } catch (error) {
+        console.error('데이터 로드 실패:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadData();
+  }, []);
+
+  // API 데이터를 기존 Project 형식으로 변환
+  const myProjects = apiProjects.map(p => ({
+    id: p.id.toString(),
+    key: p.projectKey || 'PROJ',
+    name: p.name,
+    description: p.description || '',
+    status: p.status.toLowerCase().replace('_', '-') as any,
+    type: 'software' as const,
+    leadId: currentUser?.id || '1',
+    members: [],
+    startDate: p.startDate,
+    endDate: p.endDate,
+    createdAt: p.createdAt,
+    updatedAt: p.updatedAt,
+    tasks: apiTasks
+      .filter(t => t.projectId === p.id)
+      .map(t => ({
+        id: t.id.toString(),
+        title: t.title,
+        description: t.description || '',
+        status: t.status.toLowerCase().replace('_', '-') as any,
+        priority: t.priority.toLowerCase() as any,
+        assigneeIds: t.assigneeId ? [t.assigneeId.toString()] : [],
+        reporterId: '1',
+        projectId: t.projectId.toString(),
+        labels: [],
+        loggedHours: 0,
+        progress: t.status === 'DONE' ? 100 : t.status === 'IN_PROGRESS' ? 50 : 0,
+        dueDate: t.dueDate,
+        createdAt: t.createdAt,
+        updatedAt: t.updatedAt,
+        comments: [],
+        attachments: [],
+        dependencies: [],
+        subtasks: []
+      })),
+    attachments: [],
+    settings: {
+      allowComments: true,
+      allowFileUploads: true,
+      requireApproval: false,
+      notifyOnUpdates: true
+    }
+  }));
+
+  const assignedTasks = apiTasks.map(t => ({
+    id: t.id.toString(),
+    title: t.title,
+    description: t.description || '',
+    status: t.status.toLowerCase().replace('_', '-') as any,
+    priority: t.priority.toLowerCase() as any,
+    assigneeIds: t.assigneeId ? [t.assigneeId.toString()] : [],
+    reporterId: '1',
+    projectId: t.projectId.toString(),
+    labels: [],
+    loggedHours: 0,
+    progress: t.status === 'DONE' ? 100 : t.status === 'IN_PROGRESS' ? 50 : 0,
+    dueDate: t.dueDate,
+    createdAt: t.createdAt,
+    updatedAt: t.updatedAt,
+    comments: [],
+    attachments: [],
+    dependencies: [],
+    subtasks: []
+  }));
+
+  const upcomingDeadlines = assignedTasks.filter(t => t.dueDate && new Date(t.dueDate) > new Date());
 
   // Filter projects
   const filteredProjects = myProjects.filter(project => {
@@ -144,6 +259,17 @@ export default function ProjectDashboard({ onProjectSelect, onCreateProject }: P
   };
 
   if (!currentUser) return null;
+
+  if (loading) {
+    return (
+      <div className="flex-1 bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-500 border-t-transparent mx-auto mb-4"></div>
+          <p className="text-gray-600">프로젝트 로딩 중...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex-1 bg-gray-50 overflow-y-auto custom-scrollbar">
