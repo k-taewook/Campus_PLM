@@ -166,14 +166,6 @@ export const plmApi = {
     await api.delete(`/tasks/${id}`);
   },
 
-  // 프로젝트 멤버 일괄 추가
-  addProjectMembersBulk: async (
-    projectId: number,
-    members: { userId: number; role: 'LEAD' | 'ADMIN' | 'DEVELOPER' | 'DESIGNER' | 'TESTER' | 'VIEWER' }[],
-  ) => {
-    const response = await api.post(`/projects/${projectId}/members/bulk`, { members });
-    return response.data;
-  },
 };
 
 export default api;

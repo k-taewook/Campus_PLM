@@ -181,4 +181,29 @@ public class TeamService {
         TeamMember updatedMember = teamMemberRepository.save(teamMember);
         return convertToMemberDto(updatedMember);
     }
+
+    // 팀 멤버 일괄 추가 (중복 자동 스킵)
+    public List<TeamMemberDto> addTeamMembersBulk(Long teamId, List<Long> userIds, TeamMemberRole role) {
+        Team team = teamRepository.findById(teamId)
+                .orElseThrow(() -> new RuntimeException("Team not found with id: " + teamId));
+        if (userIds == null || userIds.isEmpty()) return List.of();
+
+        List<TeamMemberDto> result = new java.util.ArrayList<>();
+        for (Long userId : userIds) {
+            if (userId == null) continue;
+            if (teamMemberRepository.existsByTeamIdAndUserId(teamId, userId)) {
+                // 이미 존재하면 스킵
+                continue;
+            }
+            User user = userRepository.findById(userId)
+                    .orElseThrow(() -> new RuntimeException("User not found with id: " + userId));
+            TeamMember tm = new TeamMember();
+            tm.setTeam(team);
+            tm.setUser(user);
+            tm.setRole(role);
+            TeamMember saved = teamMemberRepository.save(tm);
+            result.add(convertToMemberDto(saved));
+        }
+        return result;
+    }
 }

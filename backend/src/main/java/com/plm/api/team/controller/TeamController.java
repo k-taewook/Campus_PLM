@@ -117,6 +117,17 @@ public class TeamController {
         return ResponseEntity.ok(updatedMember);
     }
     
+    // 팀 멤버 일괄 추가
+    @PostMapping("/{teamId}/members/bulk")
+    public ResponseEntity<List<TeamMemberDto>> addMembersBulk(
+            @PathVariable Long teamId,
+            @RequestBody List<Long> userIds,
+            @RequestParam(defaultValue = "MEMBER") TeamMemberRole role
+    ) {
+        List<TeamMemberDto> members = teamService.addTeamMembersBulk(teamId, userIds, role);
+        return ResponseEntity.status(HttpStatus.CREATED).body(members);
+    }
+
     // 사용자가 속한 팀 목록 조회
     @GetMapping("/user/{userId}")
     public ResponseEntity<List<TeamDto>> getUserTeams(@PathVariable Long userId) {

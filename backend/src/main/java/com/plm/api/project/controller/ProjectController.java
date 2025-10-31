@@ -1,11 +1,8 @@
 package com.plm.api.project.controller;
 
 import com.plm.api.project.dto.ProjectDto;
-import com.plm.api.project.dto.AddProjectMembersRequest;
-import com.plm.api.project.dto.ProjectMemberDto;
 import com.plm.api.project.entity.ProjectStatus;
 import com.plm.api.project.service.ProjectService;
-import com.plm.api.project.service.ProjectMemberService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -21,21 +18,12 @@ public class ProjectController {
     
     @Autowired
     private ProjectService projectService;
-
-    @Autowired
-    private ProjectMemberService projectMemberService;
     
     // 모든 프로젝트 조회
     @GetMapping
     public ResponseEntity<List<ProjectDto>> getAllProjects() {
         List<ProjectDto> projects = projectService.getAllProjects();
         return ResponseEntity.ok(projects);
-    }
-    // 프로젝트 멤버 조회
-    @GetMapping("/{id}/members")
-    public ResponseEntity<List<ProjectMemberDto>> getMembers(@PathVariable Long id) {
-        List<ProjectMemberDto> result = projectMemberService.getMembers(id);
-        return ResponseEntity.ok(result);
     }
     
     // 프로젝트 상세 조회
@@ -53,17 +41,6 @@ public class ProjectController {
             ProjectDto createdProject = projectService.createProject(projectDto);
             return ResponseEntity.status(HttpStatus.CREATED).body(createdProject);
         } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
-        }
-    }
-    // 프로젝트 멤버 일괄 추가
-    @PostMapping("/{id}/members/bulk")
-    public ResponseEntity<List<ProjectMemberDto>> addMembersBulk(@PathVariable Long id,
-                                                                 @RequestBody AddProjectMembersRequest request) {
-        try {
-            List<ProjectMemberDto> result = projectMemberService.addMembersBulk(id, request.getMembers());
-            return ResponseEntity.status(HttpStatus.CREATED).body(result);
-        } catch (RuntimeException e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
         }
     }

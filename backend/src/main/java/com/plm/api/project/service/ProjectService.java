@@ -5,7 +5,6 @@ import com.plm.api.project.entity.Project;
 import com.plm.api.project.entity.ProjectStatus;
 import com.plm.api.project.repository.ProjectRepository;
 import com.plm.api.task.repository.TaskRepository;
-import com.plm.api.project.repository.ProjectMemberRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,9 +22,6 @@ public class ProjectService {
     
     @Autowired
     private TaskRepository taskRepository;
-
-    @Autowired
-    private ProjectMemberRepository projectMemberRepository;
     
     // 모든 프로젝트 조회
     public List<ProjectDto> getAllProjects() {
@@ -64,8 +60,6 @@ public class ProjectService {
     // 프로젝트 삭제
     public boolean deleteProject(Long id) {
         if (projectRepository.existsById(id)) {
-            // FK 제약 해소를 위해 자식(ProjectMember) 먼저 삭제
-            projectMemberRepository.deleteByProjectId(id);
             projectRepository.deleteById(id);
             return true;
         }
