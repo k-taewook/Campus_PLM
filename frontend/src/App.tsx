@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { ProjectProvider, useProjects } from './contexts/ProjectContext';
 import { useAuth } from './contexts/AuthContext';
 import ProjectSidebar from './components/ProjectSidebar';
@@ -8,6 +8,7 @@ import UserProfile from './components/UserProfile';
 import AdminUserManagement from './components/AdminUserManagement';
 import Settings from './components/Settings';
 import CreateProjectDialog from './components/CreateProjectDialog';
+import TeamManagement from './components/TeamManagement';
 
 function ProjectApp() {
   const { user } = useAuth(); // AuthContext 사용
@@ -17,11 +18,13 @@ function ProjectApp() {
   const [showAdminUserManagement, setShowAdminUserManagement] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showCreateProject, setShowCreateProject] = useState(false);
+  const [showTeamManagement, setShowTeamManagement] = useState(false);
 
   const handleProjectSelect = (projectId: string | null) => {
     setSelectedProjectId(projectId);
     setShowDashboard(false);
     setShowUserProfile(false);
+    setShowTeamManagement(false);
     setShowAdminUserManagement(false);
     setShowSettings(false);
   };
@@ -34,6 +37,7 @@ function ProjectApp() {
     setSelectedProjectId(null);
     setShowDashboard(true);
     setShowUserProfile(false);
+    setShowTeamManagement(false);
     setShowAdminUserManagement(false);
     setShowSettings(false);
   };
@@ -42,6 +46,7 @@ function ProjectApp() {
     setSelectedProjectId(null);
     setShowDashboard(false);
     setShowUserProfile(true);
+    setShowTeamManagement(false);
     setShowAdminUserManagement(false);
     setShowSettings(false);
   };
@@ -51,6 +56,7 @@ function ProjectApp() {
     setShowDashboard(false);
     setShowUserProfile(false);
     setShowAdminUserManagement(true);
+    setShowTeamManagement(false);
     setShowSettings(false);
   };
 
@@ -59,7 +65,17 @@ function ProjectApp() {
     setShowDashboard(false);
     setShowUserProfile(false);
     setShowAdminUserManagement(false);
+    setShowTeamManagement(false);
     setShowSettings(true);
+  };
+
+  const handleShowTeamManagement = () => {
+    setSelectedProjectId(null);
+    setShowDashboard(false);
+    setShowUserProfile(false);
+    setShowAdminUserManagement(false);
+    setShowSettings(false);
+    setShowTeamManagement(true);
   };
 
 
@@ -75,6 +91,8 @@ function ProjectApp() {
         onShowDashboard={handleShowDashboard}
         showUserProfile={showUserProfile}
         onShowUserProfile={handleShowUserProfile}
+        showTeamManagement={showTeamManagement}
+        onShowTeamManagement={handleShowTeamManagement}
         showAdminUserManagement={showAdminUserManagement}
         onShowAdminUserManagement={handleShowAdminUserManagement}
         showSettings={showSettings}
@@ -89,6 +107,8 @@ function ProjectApp() {
         />
       ) : showUserProfile ? (
         <UserProfile />
+      ) : showTeamManagement ? (
+        <TeamManagement isCompact={false} />
       ) : showAdminUserManagement ? (
         <AdminUserManagement />
       ) : showSettings ? (
@@ -100,6 +120,7 @@ function ProjectApp() {
             setSelectedProjectId(null);
             setShowDashboard(true);
             setShowUserProfile(false);
+            setShowTeamManagement(false);
             setShowAdminUserManagement(false);
             setShowSettings(false);
           }}
@@ -127,8 +148,6 @@ function ProjectApp() {
 
 export default function App() {
   return (
-    <ProjectProvider>
-      <ProjectApp />
-    </ProjectProvider>
+    <ProjectProvider children={<ProjectApp />} />
   );
 }

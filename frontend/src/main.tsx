@@ -7,6 +7,7 @@ import SignupScreen from "./components/SignupScreen.tsx";
 import ProtectedRoute from "./components/ProtectedRoute.tsx";
 import FileManagementDemo from "./pages/FileManagementDemo.tsx";
 import ProjectList from "./pages/ProjectList.tsx";
+import TeamsPage from "./pages/Teams.tsx";
 import "./index.css";
 
 createRoot(document.getElementById("root")!).render(
@@ -28,6 +29,14 @@ createRoot(document.getElementById("root")!).render(
           element={
             <ProtectedRoute>
               <FileManagementDemo />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/teams"
+          element={
+            <ProtectedRoute>
+              <TeamsPage />
             </ProtectedRoute>
           }
         />

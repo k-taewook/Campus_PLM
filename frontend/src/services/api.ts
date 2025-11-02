@@ -166,6 +166,56 @@ export const plmApi = {
     await api.delete(`/tasks/${id}`);
   },
 
+  // ===== 팀 관리 =====
+  getTeams: async (): Promise<Team[]> => {
+    const response = await api.get('/teams');
+    return response.data;
+  },
+
+  getTeam: async (id: number): Promise<Team> => {
+    const response = await api.get(`/teams/${id}`);
+    return response.data;
+  },
+
+  createTeam: async (team: CreateTeamRequest): Promise<Team> => {
+    const response = await api.post('/teams', team);
+    return response.data;
+  },
+
+  updateTeam: async (id: number, team: Partial<CreateTeamRequest>): Promise<Team> => {
+    const response = await api.put(`/teams/${id}`, team);
+    return response.data;
+  },
+
+  deleteTeam: async (id: number): Promise<void> => {
+    await api.delete(`/teams/${id}`);
+  },
+
+  // 팀 멤버 관리
+  getTeamMembers: async (teamId: number): Promise<TeamMember[]> => {
+    const response = await api.get(`/teams/${teamId}/members`);
+    return response.data;
+  },
+
+  addTeamMember: async (teamId: number, userId: number, role: TeamMemberRole = 'MEMBER'): Promise<TeamMember> => {
+    const response = await api.post(`/teams/${teamId}/members/${userId}`, null, { params: { role } });
+    return response.data;
+  },
+
+  addTeamMembersBulk: async (teamId: number, userIds: number[], role: TeamMemberRole = 'MEMBER'): Promise<TeamMember[]> => {
+    const response = await api.post(`/teams/${teamId}/members/bulk`, userIds, { params: { role } });
+    return response.data;
+  },
+
+  removeTeamMember: async (teamId: number, userId: number): Promise<void> => {
+    await api.delete(`/teams/${teamId}/members/${userId}`);
+  },
+
+  updateMemberRole: async (teamId: number, userId: number, role: TeamMemberRole): Promise<TeamMember> => {
+    const response = await api.put(`/teams/${teamId}/members/${userId}/role`, null, { params: { role } });
+    return response.data;
+  },
+
 };
 
 export default api;
@@ -185,4 +235,35 @@ export interface User {
   lastLoginAt?: string;
   createdAt?: string;
   updatedAt?: string;
+}
+
+// 팀 타입 (백엔드 TeamDto 호환)
+export interface Team {
+  id: number;
+  name: string;
+  description: string;
+  logoUrl?: string;
+  memberCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type TeamMemberRole = 'OWNER' | 'ADMIN' | 'MEMBER' | 'VIEWER';
+
+export interface TeamMember {
+  id: number;
+  teamId: number;
+  teamName: string;
+  userId: number;
+  username: string;
+  userFullName: string;
+  userEmail: string;
+  role: TeamMemberRole;
+  joinedAt: string;
+}
+
+export interface CreateTeamRequest {
+  name: string;
+  description?: string;
+  logoUrl?: string;
 }

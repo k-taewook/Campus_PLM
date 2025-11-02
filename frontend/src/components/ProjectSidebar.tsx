@@ -34,6 +34,8 @@ interface ProjectSidebarProps {
   onShowDashboard: () => void;
   showUserProfile: boolean;
   onShowUserProfile: () => void;
+  showTeamManagement: boolean;
+  onShowTeamManagement: () => void;
   showAdminUserManagement: boolean;
   onShowAdminUserManagement: () => void;
   showSettings: boolean;
@@ -48,6 +50,8 @@ export default function ProjectSidebar({
   onShowDashboard,
   showUserProfile,
   onShowUserProfile,
+  showTeamManagement,
+  onShowTeamManagement,
   showAdminUserManagement,
   onShowAdminUserManagement,
   showSettings,
@@ -282,6 +286,15 @@ export default function ProjectSidebar({
           >
             <UserCircle className="w-4 h-4" />
             {!isCollapsed && <span className="ml-2">내 프로필</span>}
+          </Button>
+          <Button 
+            variant={showTeamManagement ? "default" : "ghost"}
+            className={`w-full ${isCollapsed ? 'justify-center px-0' : 'justify-start'}`}
+            onClick={onShowTeamManagement}
+            title={isCollapsed ? "팀 관리" : undefined}
+          >
+            <Users className="w-4 h-4" />
+            {!isCollapsed && <span className="ml-2">팀 관리</span>}
           </Button>
           {currentUser?.role === 'admin' && (
             <Button 
