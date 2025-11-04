@@ -127,6 +127,11 @@ public class TeamService {
         if (!teamRepository.existsById(id)) {
             throw new RuntimeException("Team not found with id: " + id);
         }
+        
+        // 팀 삭제 전에 모든 팀 멤버 먼저 삭제 (외래 키 제약 조건 해결)
+        teamMemberRepository.deleteByTeamId(id);
+        
+        // 팀 삭제
         teamRepository.deleteById(id);
     }
     

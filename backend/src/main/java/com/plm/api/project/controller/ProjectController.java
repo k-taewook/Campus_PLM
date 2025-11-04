@@ -1,6 +1,7 @@
 package com.plm.api.project.controller;
 
 import com.plm.api.project.dto.ProjectDto;
+import com.plm.api.project.dto.ProjectMemberDto;
 import com.plm.api.project.entity.ProjectStatus;
 import com.plm.api.project.service.ProjectService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -86,6 +87,60 @@ public class ProjectController {
     @GetMapping("/search")
     public ResponseEntity<List<ProjectDto>> searchProjects(@RequestParam String keyword) {
         List<ProjectDto> projects = projectService.searchProjects(keyword);
+        return ResponseEntity.ok(projects);
+    }
+    
+    // ===== 프로젝트 멤버 관리 API =====
+    
+    // 프로젝트 멤버 목록 조회
+    @GetMapping("/{id}/members")
+    public ResponseEntity<List<ProjectMemberDto>> getProjectMembers(@PathVariable Long id) {
+        List<ProjectMemberDto> members = projectService.getProjectMembers(id);
+        return ResponseEntity.ok(members);
+    }
+    
+    // 프로젝트에 멤버 추가
+    @PostMapping("/{projectId}/members/{userId}")
+    public ResponseEntity<ProjectMemberDto> addProjectMember(
+            @PathVariable Long projectId, 
+            @PathVariable Long userId) {
+        try {
+            ProjectMemberDto member = projectService.addProjectMember(projectId, userId);
+            return ResponseEntity.status(HttpStatus.CREATED).body(member);
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
+        }
+    }
+    
+    // 프로젝트에서 멤버 제거
+    @DeleteMapping("/{projectId}/members/{userId}")
+    public ResponseEntity<Void> removeProjectMember(@PathVariable Long projectId, @PathVariable Long userId) {
+        try {
+            projectService.removeProjectMember(projectId, userId);
+            return ResponseEntity.noContent().build();
+        } catch (RuntimeException e) {
+            return ResponseEntity.notFound().build();
+        }
+    }
+    
+    // 프로젝트 멤버 일괄 추가
+    @PostMapping("/{projectId}/members/bulk")
+    public ResponseEntity<List<ProjectMemberDto>> addProjectMembersBulk(
+            @PathVariable Long projectId,
+            @RequestBody List<Long> userIds
+    ) {
+        try {
+            List<ProjectMemberDto> members = projectService.addProjectMembersBulk(projectId, userIds);
+            return ResponseEntity.status(HttpStatus.CREATED).body(members);
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
+        }
+    }
+    
+    // 사용자가 속한 프로젝트 목록 조회
+    @GetMapping("/user/{userId}")
+    public ResponseEntity<List<ProjectDto>> getUserProjects(@PathVariable Long userId) {
+        List<ProjectDto> projects = projectService.getUserProjects(userId);
         return ResponseEntity.ok(projects);
     }
 }

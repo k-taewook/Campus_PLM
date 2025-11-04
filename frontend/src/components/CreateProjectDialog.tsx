@@ -74,7 +74,18 @@ export default function CreateProjectDialog({ open, onOpenChange, onProjectCreat
       const response = await api.post('/projects', projectData);
       console.log('프로젝트 생성 성공:', response.data);
 
-    
+      // 프로젝트 멤버 추가
+      const createdProjectId = response.data.id;
+      if (formData.teamMembers.length > 0) {
+        const memberIds = formData.teamMembers.map(id => parseInt(id));
+        try {
+          await plmApi.addProjectMembersBulk(createdProjectId, memberIds);
+          console.log('프로젝트 멤버 추가 성공');
+        } catch (memberError) {
+          console.error('프로젝트 멤버 추가 실패:', memberError);
+          // 멤버 추가 실패해도 프로젝트는 생성됨
+        }
+      }
 
       // Reset form
       setFormData({
@@ -149,11 +160,16 @@ export default function CreateProjectDialog({ open, onOpenChange, onProjectCreat
 
   const selectedMembers = users.filter(user => formData.teamMembers.includes(user.id));
   
-  // 검색어에 따라 사용자 필터링
-  const filteredUsers = users.filter(user => 
-    user.name.toLowerCase().includes(memberSearchQuery.toLowerCase()) ||
-    user.email.toLowerCase().includes(memberSearchQuery.toLowerCase())
-  );
+  // 검색어에 따라 사용자 필터링 (프로젝트 리드로 선택된 사람 제외)
+  const filteredUsers = users.filter(user => {
+    // 프로젝트 리드로 선택된 사람은 제외
+    if (formData.leadId && user.id === formData.leadId) {
+      return false;
+    }
+    // 검색어 필터링
+    return user.name.toLowerCase().includes(memberSearchQuery.toLowerCase()) ||
+      user.email.toLowerCase().includes(memberSearchQuery.toLowerCase());
+  });
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

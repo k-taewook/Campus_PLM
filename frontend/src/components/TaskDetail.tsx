@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { 
   ArrowLeft,
   Edit,
@@ -31,6 +31,7 @@ import { Separator } from './ui/separator';
 import { Checkbox } from './ui/checkbox';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from './ui/dropdown-menu';
 import { useProjects, type Task, type Attachment } from '../contexts/ProjectContext';
+import api from '../services/api';
 
 interface TaskDetailProps {
   taskId: string;
@@ -39,7 +40,6 @@ interface TaskDetailProps {
 
 export default function TaskDetail({ taskId, onBack }: TaskDetailProps) {
   const { 
-    projects, 
     users, 
     currentUser,
     updateTask,
@@ -49,8 +49,11 @@ export default function TaskDetail({ taskId, onBack }: TaskDetailProps) {
     canEditTask
   } = useProjects();
 
+  const [task, setTask] = useState<any>(null);
+  const [project, setProject] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
-  const [editData, setEditData] = useState<Partial<Task>>({});
+  const [editData, setEditData] = useState<any>({});
   const [newComment, setNewComment] = useState('');
   const [newLink, setNewLink] = useState({ name: '', url: '' });
   const [showLinkForm, setShowLinkForm] = useState(false);
@@ -58,11 +61,70 @@ export default function TaskDetail({ taskId, onBack }: TaskDetailProps) {
   const [showTimeLog, setShowTimeLog] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Find task
-  const task = projects.flatMap(p => p.tasks).find(t => t.id === taskId);
-  const project = projects.find(p => p.tasks.some(t => t.id === taskId));
+  useEffect(() => {
+    loadTaskData();
+  }, [taskId]);
 
-  if (!task || !project) {
+  const loadTaskData = async () => {
+    try {
+      setLoading(true);
+      const response = await api.get(`/tasks/${taskId}`);
+      const taskData = response.data;
+      
+      setTask({
+        id: taskData.id.toString(),
+        title: taskData.title,
+        description: taskData.description || '',
+        status: taskData.status.toLowerCase().replace('_', '-'),
+        priority: taskData.priority.toLowerCase(),
+        assigneeIds: taskData.assigneeId ? [taskData.assigneeId.toString()] : [],
+        reporterId: taskData.reporterId?.toString() || '',
+        dueDate: taskData.dueDate,
+        startDate: taskData.startDate,
+        createdAt: taskData.createdAt,
+        updatedAt: taskData.updatedAt,
+        estimatedHours: taskData.estimatedHours || 0,
+        loggedHours: taskData.loggedHours || 0,
+        progress: taskData.progress || 0,
+        comments: [],
+        attachments: [],
+        labels: [],
+        subtasks: [],
+        timeLogs: []
+      });
+
+      // 프로젝트 정보 로드
+      if (taskData.projectId) {
+        try {
+          const projectResponse = await api.get(`/projects/${taskData.projectId}`);
+          setProject({
+            id: projectResponse.data.id.toString(),
+            name: projectResponse.data.name,
+            key: projectResponse.data.projectKey || 'PROJ'
+          });
+        } catch (error) {
+          console.error('프로젝트 로드 실패:', error);
+        }
+      }
+    } catch (error) {
+      console.error('태스크 로드 실패:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex-1 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-500 border-t-transparent mx-auto mb-4"></div>
+          <p>태스크 로딩 중...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!task) {
     return (
       <div className="flex-1 flex items-center justify-center">
         <div className="text-center">
@@ -91,10 +153,36 @@ export default function TaskDetail({ taskId, onBack }: TaskDetailProps) {
     setIsEditing(true);
   };
 
-  const handleSave = () => {
-    updateTask(taskId, editData);
-    setIsEditing(false);
-    setEditData({});
+  const handleSave = async () => {
+    try {
+      // API 형식에 맞게 데이터 변환
+      const updateData: any = {
+        title: editData.title,
+        description: editData.description || null,
+        status: editData.status.toUpperCase().replace('-', '_'),
+        priority: editData.priority.toUpperCase(),
+        estimatedHours: editData.estimatedHours || null,
+        startDate: editData.startDate || null,
+        dueDate: editData.dueDate || null
+      };
+
+      // assigneeId는 단일 값만 지원 (첫 번째 담당자만)
+      if (editData.assigneeIds && editData.assigneeIds.length > 0) {
+        updateData.assigneeId = parseInt(editData.assigneeIds[0]);
+      }
+
+      await api.put(`/tasks/${taskId}`, updateData);
+      
+      // 데이터 새로고침
+      await loadTaskData();
+      
+      setIsEditing(false);
+      setEditData({});
+      alert('태스크가 수정되었습니다!');
+    } catch (error) {
+      console.error('태스크 수정 실패:', error);
+      alert('태스크 수정에 실패했습니다.');
+    }
   };
 
   const handleCancel = () => {
@@ -148,8 +236,17 @@ export default function TaskDetail({ taskId, onBack }: TaskDetailProps) {
     }
   };
 
-  const updateStatus = (newStatus: Task['status']) => {
-    updateTask(taskId, { status: newStatus });
+  const updateStatus = async (newStatus: string) => {
+    try {
+      const updateData = {
+        status: newStatus.toUpperCase().replace('-', '_')
+      };
+      await api.patch(`/tasks/${taskId}`, updateData);
+      await loadTaskData();
+    } catch (error) {
+      console.error('상태 변경 실패:', error);
+      alert('상태 변경에 실패했습니다.');
+    }
   };
 
   const getStatusColor = (status: string) => {
@@ -347,7 +444,7 @@ export default function TaskDetail({ taskId, onBack }: TaskDetailProps) {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
-                {task.attachments.map(attachment => {
+                {task.attachments.map((attachment: any) => {
                   const uploader = users.find(u => u.id === attachment.uploadedBy);
                   return (
                     <div key={attachment.id} className="flex items-center gap-3 p-3 border rounded-lg">
@@ -448,7 +545,7 @@ export default function TaskDetail({ taskId, onBack }: TaskDetailProps) {
                 <Separator />
 
                 {/* Comments List */}
-                {task.comments.map(comment => (
+                {task.comments.map((comment: any) => (
                   <div key={comment.id} className="flex gap-3">
                     <Avatar className="w-8 h-8">
                       <AvatarFallback className="bg-blue-100 text-blue-600">
@@ -493,7 +590,7 @@ export default function TaskDetail({ taskId, onBack }: TaskDetailProps) {
                         <div>
                           <p className="text-sm text-gray-600 mb-2">선택된 담당자 ({editData.assigneeIds.length}명)</p>
                           <div className="flex flex-wrap gap-2">
-                            {editData.assigneeIds.map(assigneeId => {
+                            {editData.assigneeIds.map((assigneeId: any) => {
                               const assignee = users.find(u => u.id === assigneeId);
                               if (!assignee) return null;
                               return (
@@ -507,7 +604,7 @@ export default function TaskDetail({ taskId, onBack }: TaskDetailProps) {
                                   <X 
                                     className="w-3 h-3 cursor-pointer hover:text-red-600" 
                                     onClick={() => {
-                                      const newAssigneeIds = editData.assigneeIds?.filter(id => id !== assigneeId) || [];
+                                      const newAssigneeIds = editData.assigneeIds?.filter((id: any) => id !== assigneeId) || [];
                                       setEditData({ ...editData, assigneeIds: newAssigneeIds });
                                     }}
                                   />
@@ -522,7 +619,7 @@ export default function TaskDetail({ taskId, onBack }: TaskDetailProps) {
                       <div className="border rounded-lg p-3 max-h-32 overflow-y-auto">
                         <p className="text-sm text-gray-600 mb-2">사용 가능한 팀원</p>
                         <div className="space-y-2">
-                          {project.members.map(member => {
+                          {project.members.map((member: any) => {
                             const user = users.find(u => u.id === member.userId);
                             if (!user) return null;
                             
@@ -538,7 +635,7 @@ export default function TaskDetail({ taskId, onBack }: TaskDetailProps) {
                                     if (isSelected) {
                                       setEditData({ 
                                         ...editData, 
-                                        assigneeIds: currentAssignees.filter(id => id !== user.id) 
+                                        assigneeIds: currentAssignees.filter((id: any) => id !== user.id) 
                                       });
                                     } else {
                                       setEditData({ 
@@ -603,7 +700,7 @@ export default function TaskDetail({ taskId, onBack }: TaskDetailProps) {
                 <div>
                   <Label>상태</Label>
                   {isEditing ? (
-                    <Select value={editData.status || task.status} onValueChange={(value) => setEditData({ ...editData, status: value as Task['status'] })}>
+                    <Select value={editData.status || task.status} onValueChange={(value: any) => setEditData({ ...editData, status: value })}>
                       <SelectTrigger className="mt-1">
                         <SelectValue />
                       </SelectTrigger>
@@ -626,7 +723,7 @@ export default function TaskDetail({ taskId, onBack }: TaskDetailProps) {
                 <div>
                   <Label>우선순위</Label>
                   {isEditing ? (
-                    <Select value={editData.priority || task.priority} onValueChange={(value) => setEditData({ ...editData, priority: value as Task['priority'] })}>
+                    <Select value={editData.priority || task.priority} onValueChange={(value: any) => setEditData({ ...editData, priority: value })}>
                       <SelectTrigger className="mt-1">
                         <SelectValue />
                       </SelectTrigger>
@@ -682,7 +779,7 @@ export default function TaskDetail({ taskId, onBack }: TaskDetailProps) {
                 <div>
                   <Label>레이블</Label>
                   <div className="mt-1 flex flex-wrap gap-1">
-                    {task.labels.map(label => (
+                    {task.labels.map((label: any) => (
                       <Badge key={label} variant="outline" className="text-xs">
                         {label}
                       </Badge>

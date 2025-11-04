@@ -1,10 +1,15 @@
 package com.plm.api.project.service;
 
 import com.plm.api.project.dto.ProjectDto;
+import com.plm.api.project.dto.ProjectMemberDto;
 import com.plm.api.project.entity.Project;
+import com.plm.api.project.entity.ProjectMember;
 import com.plm.api.project.entity.ProjectStatus;
 import com.plm.api.project.repository.ProjectRepository;
+import com.plm.api.project.repository.ProjectMemberRepository;
 import com.plm.api.task.repository.TaskRepository;
+import com.plm.api.user.entity.User;
+import com.plm.api.user.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,6 +27,12 @@ public class ProjectService {
     
     @Autowired
     private TaskRepository taskRepository;
+    
+    @Autowired
+    private ProjectMemberRepository projectMemberRepository;
+    
+    @Autowired
+    private UserRepository userRepository;
     
     // 모든 프로젝트 조회
     public List<ProjectDto> getAllProjects() {
@@ -152,5 +163,87 @@ public class ProjectService {
         if (projectDto.getManagerId() != null) {
             existingProject.setManagerId(projectDto.getManagerId());
         }
+    }
+    
+    // ===== 프로젝트 멤버 관리 메서드 =====
+    
+    // 프로젝트 멤버 목록 조회
+    public List<ProjectMemberDto> getProjectMembers(Long projectId) {
+        return projectMemberRepository.findByProjectId(projectId).stream()
+                .map(this::convertToMemberDto)
+                .collect(Collectors.toList());
+    }
+    
+    // 프로젝트에 멤버 추가
+    public ProjectMemberDto addProjectMember(Long projectId, Long userId) {
+        Project project = projectRepository.findById(projectId)
+                .orElseThrow(() -> new RuntimeException("Project not found with id: " + projectId));
+        
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found with id: " + userId));
+        
+        // 중복 체크
+        if (projectMemberRepository.existsByProjectIdAndUserId(projectId, userId)) {
+            throw new RuntimeException("User is already a member of this project");
+        }
+        
+        ProjectMember projectMember = new ProjectMember();
+        projectMember.setProject(project);
+        projectMember.setUser(user);
+        
+        ProjectMember savedMember = projectMemberRepository.save(projectMember);
+        return convertToMemberDto(savedMember);
+    }
+    
+    // 프로젝트에서 멤버 제거
+    public void removeProjectMember(Long projectId, Long userId) {
+        ProjectMember member = projectMemberRepository.findByProjectIdAndUserId(projectId, userId)
+                .orElseThrow(() -> new RuntimeException("Project member not found"));
+        projectMemberRepository.delete(member);
+    }
+    
+    // 프로젝트 멤버 일괄 추가
+    public List<ProjectMemberDto> addProjectMembersBulk(Long projectId, List<Long> userIds) {
+        Project project = projectRepository.findById(projectId)
+                .orElseThrow(() -> new RuntimeException("Project not found with id: " + projectId));
+        
+        List<ProjectMember> members = userIds.stream()
+                .filter(userId -> !projectMemberRepository.existsByProjectIdAndUserId(projectId, userId))
+                .map(userId -> {
+                    User user = userRepository.findById(userId)
+                            .orElseThrow(() -> new RuntimeException("User not found with id: " + userId));
+                    
+                    ProjectMember member = new ProjectMember();
+                    member.setProject(project);
+                    member.setUser(user);
+                    return member;
+                })
+                .collect(Collectors.toList());
+        
+        List<ProjectMember> savedMembers = projectMemberRepository.saveAll(members);
+        return savedMembers.stream()
+                .map(this::convertToMemberDto)
+                .collect(Collectors.toList());
+    }
+    
+    // 사용자가 속한 프로젝트 목록 조회
+    public List<ProjectDto> getUserProjects(Long userId) {
+        return projectMemberRepository.findByUserId(userId).stream()
+                .map(pm -> convertToDto(pm.getProject()))
+                .collect(Collectors.toList());
+    }
+    
+    // ProjectMember를 DTO로 변환
+    private ProjectMemberDto convertToMemberDto(ProjectMember projectMember) {
+        ProjectMemberDto dto = new ProjectMemberDto();
+        dto.setId(projectMember.getId());
+        dto.setProjectId(projectMember.getProject().getId());
+        dto.setProjectName(projectMember.getProject().getName());
+        dto.setUserId(projectMember.getUser().getId());
+        dto.setUsername(projectMember.getUser().getUsername());
+        dto.setUserFullName(projectMember.getUser().getFullName());
+        dto.setUserEmail(projectMember.getUser().getEmail());
+        dto.setJoinedAt(projectMember.getJoinedAt());
+        return dto;
     }
 }

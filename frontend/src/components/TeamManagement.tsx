@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Plus, Users, UserPlus, Crown, User, Mail, Calendar, MoreHorizontal, Pencil, Trash2 } from 'lucide-react';
+import { Plus, Users, UserPlus, Crown, User, Mail, Calendar, MoreHorizontal, Pencil, Trash2, Search } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
@@ -37,6 +37,10 @@ export default function TeamManagement({ isCompact }: TeamManagementProps) {
   const [sortBy, setSortBy] = useState<'NAME' | 'ROLE'>('NAME');
   const [defaultRole, setDefaultRole] = useState<'OWNER' | 'ADMIN' | 'MEMBER' | 'VIEWER'>('MEMBER');
   const [userRoles, setUserRoles] = useState<Record<number, 'OWNER' | 'ADMIN' | 'MEMBER' | 'VIEWER'>>({});
+  const [userSearchQuery, setUserSearchQuery] = useState('');
+  const [editMemberSearchQuery, setEditMemberSearchQuery] = useState('');
+  const [editSelectedMembers, setEditSelectedMembers] = useState<number[]>([]);
+  const [editUserRoles, setEditUserRoles] = useState<Record<number, 'OWNER' | 'ADMIN' | 'MEMBER' | 'VIEWER'>>({});
   const { user: authUser } = useAuth();
 
   const refreshTeams = async () => {
@@ -63,8 +67,22 @@ export default function TeamManagement({ isCompact }: TeamManagementProps) {
     if (selectedTeam) {
       const t = teams.find(t => t.id === selectedTeam);
       if (t) setEditTeam({ name: t.name, description: t.description || '' });
+      loadTeamMembers(selectedTeam);
     }
   }, [selectedTeam, teams]);
+
+  useEffect(() => {
+    if (showEditDialog && selectedTeam) {
+      // 팀 수정 다이얼로그가 열릴 때 기존 멤버를 선택된 상태로 설정
+      const memberIds = selectedTeamMembers.map(m => m.userId);
+      setEditSelectedMembers(memberIds);
+      const roles: Record<number, 'OWNER' | 'ADMIN' | 'MEMBER' | 'VIEWER'> = {};
+      selectedTeamMembers.forEach(m => {
+        roles[m.userId] = m.role as 'OWNER' | 'ADMIN' | 'MEMBER' | 'VIEWER';
+      });
+      setEditUserRoles(roles);
+    }
+  }, [showEditDialog, selectedTeam, selectedTeamMembers]);
 
   const handleCreateTeam = async () => {
     if (!newTeam.name) return;
@@ -79,6 +97,7 @@ export default function TeamManagement({ isCompact }: TeamManagementProps) {
     setNewTeam({ name: '', description: '', color: 'bg-blue-100' });
     setSelectedMembers([]);
     setUserRoles({});
+    setUserSearchQuery('');
     setShowCreateDialog(false);
   };
 
@@ -155,12 +174,12 @@ export default function TeamManagement({ isCompact }: TeamManagementProps) {
                 팀 수정
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-lg">
+            <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
               <DialogHeader>
                 <DialogTitle>팀 정보 수정</DialogTitle>
-                <DialogDescription>팀 이름과 설명을 변경할 수 있습니다.</DialogDescription>
+                <DialogDescription>팀 이름, 설명 및 멤버를 수정할 수 있습니다.</DialogDescription>
               </DialogHeader>
-              <div className="space-y-4">
+              <div className="overflow-y-auto flex-1 space-y-4 p-1">
                 <div>
                   <Label htmlFor="editTeamName">팀 이름</Label>
                   <Input id="editTeamName" value={editTeam.name} onChange={(e) => setEditTeam({ ...editTeam, name: e.target.value })} />
@@ -169,16 +188,126 @@ export default function TeamManagement({ isCompact }: TeamManagementProps) {
                   <Label htmlFor="editTeamDesc">팀 설명</Label>
                   <Textarea id="editTeamDesc" value={editTeam.description} onChange={(e) => setEditTeam({ ...editTeam, description: e.target.value })} />
                 </div>
-                <div className="flex justify-end gap-2">
-                  <Button variant="outline" onClick={() => setShowEditDialog(false)}>취소</Button>
-                  <Button onClick={async () => {
-                    if (!selectedTeam) return;
-                    await plmApi.updateTeam(selectedTeam, { name: editTeam.name, description: editTeam.description });
-                    await refreshTeams();
-                    await loadTeamMembers(selectedTeam);
-                    setShowEditDialog(false);
-                  }}>저장</Button>
+
+                {/* 팀 멤버 관리 */}
+                <div>
+                  <Label>팀 멤버 관리</Label>
+                  {/* 사용자 검색 */}
+                  <div className="relative mt-2 mb-2">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <Input
+                      placeholder="이름 또는 이메일로 검색..."
+                      value={editMemberSearchQuery}
+                      onChange={(e) => setEditMemberSearchQuery(e.target.value)}
+                      className="pl-10"
+                    />
+                  </div>
+                  
+                  <div className="space-y-2 max-h-60 overflow-y-auto border rounded-md p-3">
+                    {users
+                      .filter(user => {
+                        const query = editMemberSearchQuery.toLowerCase();
+                        return (user.fullName?.toLowerCase().includes(query) || 
+                                user.username?.toLowerCase().includes(query) || 
+                                user.email?.toLowerCase().includes(query));
+                      })
+                      .map((user) => {
+                        const checked = editSelectedMembers.includes(user.id);
+                        const assignedRole = editUserRoles[user.id] || 'MEMBER';
+                        const RoleIcon = getRoleIcon(assignedRole.toLowerCase());
+                        return (
+                          <div key={user.id} className="flex items-center gap-3">
+                            <Checkbox 
+                              id={`edit-${user.id}`}
+                              checked={checked}
+                              onCheckedChange={() => {
+                                setEditSelectedMembers(prev => 
+                                  prev.includes(user.id) 
+                                    ? prev.filter(id => id !== user.id)
+                                    : [...prev, user.id]
+                                );
+                                if (!checked) {
+                                  setEditUserRoles(prev => ({ ...prev, [user.id]: 'MEMBER' }));
+                                }
+                              }}
+                            />
+                            <div className="flex items-center gap-2 flex-1">
+                              <Avatar className="w-8 h-8">
+                                <AvatarFallback className="bg-blue-100 text-blue-600">
+                                  {user.fullName?.charAt(0) || user.username?.charAt(0) || 'U'}
+                                </AvatarFallback>
+                              </Avatar>
+                              <div className="min-w-0">
+                                <p className="text-sm font-medium truncate">{user.fullName || user.username}</p>
+                                <p className="text-xs text-muted-foreground truncate">{user.email}</p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Select 
+                                disabled={!checked} 
+                                value={assignedRole} 
+                                onValueChange={(v: string) => setEditUserRoles(prev => ({ ...prev, [user.id]: v as any }))}
+                              >
+                                <SelectTrigger className="w-28 h-8">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="OWNER">OWNER</SelectItem>
+                                  <SelectItem value="ADMIN">ADMIN</SelectItem>
+                                  <SelectItem value="MEMBER">MEMBER</SelectItem>
+                                  <SelectItem value="VIEWER">VIEWER</SelectItem>
+                                </SelectContent>
+                              </Select>
+                              <Badge className={getRoleColor(assignedRole.toLowerCase())}>
+                                <RoleIcon className="w-3 h-3 mr-1" />
+                                {assignedRole}
+                              </Badge>
+                            </div>
+                          </div>
+                        );
+                      })}
+                  </div>
                 </div>
+              </div>
+              
+              <div className="flex justify-end gap-2 pt-4 border-t flex-shrink-0">
+                <Button variant="outline" onClick={() => setShowEditDialog(false)}>취소</Button>
+                <Button onClick={async () => {
+                  if (!selectedTeam) return;
+                  
+                  // 팀 정보 업데이트
+                  await plmApi.updateTeam(selectedTeam, { name: editTeam.name, description: editTeam.description });
+                  
+                  // 기존 멤버와 새로운 멤버 비교
+                  const currentMemberIds = selectedTeamMembers.map(m => m.userId);
+                  const newMemberIds = editSelectedMembers;
+                  
+                  // 삭제할 멤버 (기존에 있었지만 새로운 선택에 없는 멤버)
+                  const toRemove = currentMemberIds.filter(id => !newMemberIds.includes(id));
+                  for (const userId of toRemove) {
+                    await plmApi.removeTeamMember(selectedTeam, userId);
+                  }
+                  
+                  // 추가할 멤버 (새로운 선택에 있지만 기존에 없던 멤버)
+                  const toAdd = newMemberIds.filter(id => !currentMemberIds.includes(id));
+                  for (const userId of toAdd) {
+                    const role = editUserRoles[userId] || 'MEMBER';
+                    await plmApi.addTeamMember(selectedTeam, userId, role);
+                  }
+                  
+                  // 역할 변경 (기존 멤버 중 역할이 변경된 경우)
+                  for (const userId of newMemberIds.filter(id => currentMemberIds.includes(id))) {
+                    const currentRole = selectedTeamMembers.find(m => m.userId === userId)?.role;
+                    const newRole = editUserRoles[userId];
+                    if (currentRole && newRole && currentRole !== newRole) {
+                      await plmApi.updateMemberRole(selectedTeam, userId, newRole);
+                    }
+                  }
+                  
+                  await refreshTeams();
+                  await loadTeamMembers(selectedTeam);
+                  setShowEditDialog(false);
+                }}>저장</Button>
               </div>
             </DialogContent>
           </Dialog>
@@ -216,7 +345,7 @@ export default function TeamManagement({ isCompact }: TeamManagementProps) {
         <div className="flex items-center gap-3 mb-4">
           <div className="flex items-center gap-2">
             <Label className="text-sm">역할</Label>
-            <Select onValueChange={(v) => setRoleFilter(v as any)} defaultValue={roleFilter}>
+            <Select onValueChange={(v: string) => setRoleFilter(v as any)} defaultValue={roleFilter}>
               <SelectTrigger className="w-40"><SelectValue placeholder="역할 필터" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="ALL">전체</SelectItem>
@@ -229,7 +358,7 @@ export default function TeamManagement({ isCompact }: TeamManagementProps) {
           </div>
           <div className="flex items-center gap-2">
             <Label className="text-sm">정렬</Label>
-            <Select onValueChange={(v) => setSortBy(v as any)} defaultValue={sortBy}>
+            <Select onValueChange={(v: string) => setSortBy(v as any)} defaultValue={sortBy}>
               <SelectTrigger className="w-32"><SelectValue placeholder="정렬" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="NAME">이름</SelectItem>
@@ -365,7 +494,7 @@ export default function TeamManagement({ isCompact }: TeamManagementProps) {
                 </div>
                 <div>
                   <Label htmlFor="teamColor">팀 색상</Label>
-                  <Select onValueChange={(value) => setNewTeam({...newTeam, color: value})}>
+                  <Select onValueChange={(value: string) => setNewTeam({...newTeam, color: value})}>
                     <SelectTrigger>
                       <SelectValue placeholder="색상 선택" />
                     </SelectTrigger>
@@ -394,11 +523,11 @@ export default function TeamManagement({ isCompact }: TeamManagementProps) {
               </div>
 
               <div>
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between mb-2">
                   <Label>팀 멤버 선택</Label>
                   <div className="flex items-center gap-2">
                     <Label className="text-sm">기본 역할</Label>
-                    <Select onValueChange={(v) => setDefaultRole(v as any)} defaultValue={defaultRole}>
+                    <Select onValueChange={(v: string) => setDefaultRole(v as any)} defaultValue={defaultRole}>
                       <SelectTrigger className="w-32"><SelectValue placeholder="기본 역할" /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="OWNER">OWNER</SelectItem>
@@ -409,8 +538,25 @@ export default function TeamManagement({ isCompact }: TeamManagementProps) {
                     </Select>
                   </div>
                 </div>
-                <div className="mt-2 space-y-2 max-h-60 overflow-y-auto border rounded-md p-3">
-                  {users.map((user) => {
+                {/* 사용자 검색 */}
+                <div className="relative mb-2">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <Input
+                    placeholder="이름 또는 이메일로 검색..."
+                    value={userSearchQuery}
+                    onChange={(e) => setUserSearchQuery(e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
+                <div className="space-y-2 max-h-60 overflow-y-auto border rounded-md p-3">
+                  {users
+                    .filter(user => {
+                      const query = userSearchQuery.toLowerCase();
+                      return (user.fullName?.toLowerCase().includes(query) || 
+                              user.username?.toLowerCase().includes(query) || 
+                              user.email?.toLowerCase().includes(query));
+                    })
+                    .map((user) => {
                     const checked = selectedMembers.includes(user.id);
                     const assignedRole = userRoles[user.id] || defaultRole;
                     const RoleIcon = getRoleIcon(assignedRole.toLowerCase());
@@ -433,7 +579,7 @@ export default function TeamManagement({ isCompact }: TeamManagementProps) {
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
-                          <Select disabled={!checked} value={assignedRole} onValueChange={(v) => setUserRoles(prev => ({ ...prev, [user.id]: v as any }))}>
+                          <Select disabled={!checked} value={assignedRole} onValueChange={(v: string) => setUserRoles(prev => ({ ...prev, [user.id]: v as any }))}>
                             <SelectTrigger className="w-28 h-8">
                               <SelectValue />
                             </SelectTrigger>
@@ -498,11 +644,11 @@ export default function TeamManagement({ isCompact }: TeamManagementProps) {
                   </div>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="sm" className="h-6 w-6 p-1" onClick={(e) => e.stopPropagation()}>
+                      <Button variant="ghost" size="sm" className="h-6 w-6 p-1" onClick={(e: React.MouseEvent) => e.stopPropagation()}>
                         <MoreHorizontal className="w-4 h-4" />
                       </Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+                    <DropdownMenuContent align="end" onClick={(e: React.MouseEvent) => e.stopPropagation()}>
                       <DropdownMenuItem onClick={async () => { setSelectedTeam(team.id); await loadTeamMembers(team.id); }}>팀 보기</DropdownMenuItem>
                       <DropdownMenuItem onClick={() => { setSelectedTeam(team.id); setEditTeam({ name: team.name, description: team.description || '' }); setShowEditDialog(true); }}>팀 수정</DropdownMenuItem>
                       <DropdownMenuSeparator />

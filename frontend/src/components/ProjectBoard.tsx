@@ -36,7 +36,7 @@ import { useProjects, type Project, type Task } from '../contexts/ProjectContext
 import TaskDetail from './TaskDetail';
 import CreateTaskDialog from './CreateTaskDialog';
 import ProjectSettings from './ProjectSettings';
-import api from '../services/api';
+import api, { plmApi } from '../services/api';
 
 interface ProjectBoardProps {
   projectId: string;
@@ -88,12 +88,24 @@ export default function ProjectBoard({ projectId, onBack }: ProjectBoardProps) {
       console.log('프로젝트 응답:', projectRes.data);
       console.log('태스크 응답:', tasksRes.data);
       
+      // 프로젝트 멤버 정보 로드
+      let projectMembers: any[] = [];
+      try {
+        const membersRes = await plmApi.getProjectMembers(parseInt(projectId));
+        projectMembers = membersRes;
+        console.log('프로젝트 멤버:', projectMembers);
+      } catch (memberError) {
+        console.error('프로젝트 멤버 로드 실패:', memberError);
+      }
+      
       setProject({
         id: projectRes.data.id.toString(),
         name: projectRes.data.name,
         description: projectRes.data.description || '',
         status: projectRes.data.status.toLowerCase().replace('_', '-'),
-        key: projectRes.data.projectKey || 'PROJ'
+        key: projectRes.data.projectKey || 'PROJ',
+        leadId: projectRes.data.managerId?.toString() || '',
+        members: projectMembers
       });
       
       setTasks(tasksRes.data.map((t: any) => ({
@@ -340,9 +352,15 @@ export default function ProjectBoard({ projectId, onBack }: ProjectBoardProps) {
   };
 
   const lead = users.find(u => u.id === project.leadId);
-  const teamMembers = project.members 
-    ? users.filter(u => project.members.some((m: any) => m.userId === u.id))
+  
+  const teamMembers = project.members && project.members.length > 0
+    ? users.filter(u => project.members.some((m: any) => {
+        // 타입을 맞춰서 비교 (User.id는 string, ProjectMember.userId는 number)
+        return m.userId.toString() === u.id.toString();
+      }))
     : [];
+  
+  console.log('Team members count:', teamMembers.length, 'Project members:', project.members);
 
   if (selectedTaskId) {
     return (
@@ -691,6 +709,15 @@ function EditProjectDialogSimple({ projectId, onClose, onProjectUpdated }: {
       const response = await api.get(`/projects/${projectId}`);
       const project = response.data;
       
+      // 프로젝트 멤버 정보 불러오기
+      let memberIds: string[] = [];
+      try {
+        const membersResponse = await plmApi.getProjectMembers(parseInt(projectId));
+        memberIds = membersResponse.map(m => m.userId.toString());
+      } catch (memberError) {
+        console.error('프로젝트 멤버 로드 실패:', memberError);
+      }
+      
       setFormData({
         name: project.name,
         description: project.description || '',
@@ -699,7 +726,7 @@ function EditProjectDialogSimple({ projectId, onClose, onProjectUpdated }: {
         startDate: project.startDate ? project.startDate.split('T')[0] : '',
         endDate: project.endDate ? project.endDate.split('T')[0] : '',
         managerId: project.managerId?.toString() || '',
-        teamMembers: project.managerId ? [project.managerId.toString()] : []
+        teamMembers: memberIds
       });
     } catch (error) {
       console.error('프로젝트 로드 실패:', error);
@@ -740,6 +767,31 @@ function EditProjectDialogSimple({ projectId, onClose, onProjectUpdated }: {
 
       await api.put(`/projects/${projectId}`, projectData);
       
+      // 프로젝트 멤버 업데이트
+      try {
+        // 현재 멤버 목록 가져오기
+        const currentMembers = await plmApi.getProjectMembers(parseInt(projectId));
+        const currentMemberIds = currentMembers.map(m => m.userId);
+        const newMemberIds = formData.teamMembers.map(id => parseInt(id));
+        
+        // 제거할 멤버
+        const toRemove = currentMemberIds.filter(id => !newMemberIds.includes(id));
+        for (const userId of toRemove) {
+          await plmApi.removeProjectMember(parseInt(projectId), userId);
+        }
+        
+        // 추가할 멤버
+        const toAdd = newMemberIds.filter(id => !currentMemberIds.includes(id));
+        if (toAdd.length > 0) {
+          await plmApi.addProjectMembersBulk(parseInt(projectId), toAdd);
+        }
+        
+        console.log('프로젝트 멤버 업데이트 완료');
+      } catch (memberError) {
+        console.error('프로젝트 멤버 업데이트 실패:', memberError);
+        // 멤버 업데이트 실패해도 프로젝트 수정은 완료됨
+      }
+      
       alert('프로젝트가 수정되었습니다!');
       onProjectUpdated();
       onClose();
@@ -763,11 +815,16 @@ function EditProjectDialogSimple({ projectId, onClose, onProjectUpdated }: {
     }));
   };
 
-  // 검색어에 따라 사용자 필터링
-  const filteredUsers = contextUsers.filter(user => 
-    user.name.toLowerCase().includes(memberSearchQuery.toLowerCase()) ||
-    user.email.toLowerCase().includes(memberSearchQuery.toLowerCase())
-  );
+  // 검색어에 따라 사용자 필터링 (프로젝트 리드로 선택된 사람 제외)
+  const filteredUsers = contextUsers.filter(user => {
+    // 프로젝트 리드로 선택된 사람은 제외
+    if (formData.managerId && user.id === formData.managerId) {
+      return false;
+    }
+    // 검색어 필터링
+    return user.name.toLowerCase().includes(memberSearchQuery.toLowerCase()) ||
+      user.email.toLowerCase().includes(memberSearchQuery.toLowerCase());
+  });
 
   // 선택된 멤버 목록
   const selectedMembers = contextUsers.filter(user => 
@@ -778,6 +835,12 @@ function EditProjectDialogSimple({ projectId, onClose, onProjectUpdated }: {
     return (
       <Dialog open={true} onOpenChange={onClose}>
         <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>프로젝트 로딩 중</DialogTitle>
+            <DialogDescription>
+              프로젝트 정보를 불러오는 중입니다.
+            </DialogDescription>
+          </DialogHeader>
           <div className="text-center py-8">
             <div className="animate-spin rounded-full h-8 w-8 border-4 border-blue-500 border-t-transparent mx-auto mb-4"></div>
             <p>프로젝트 정보 로딩 중...</p>

@@ -44,4 +44,7 @@ public interface TeamMemberRepository extends JpaRepository<TeamMember, Long> {
     // 중복 멤버 체크
     @Query("SELECT CASE WHEN COUNT(tm) > 0 THEN true ELSE false END FROM TeamMember tm WHERE tm.team.id = :teamId AND tm.user.id = :userId")
     boolean existsByTeamIdAndUserId(Long teamId, Long userId);
+    
+    // 팀의 모든 멤버 삭제
+    void deleteByTeamId(Long teamId);
 }

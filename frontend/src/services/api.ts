@@ -61,6 +61,17 @@ export interface Task {
   updatedAt: string;
 }
 
+export interface ProjectMember {
+  id: number;
+  projectId: number;
+  projectName: string;
+  userId: number;
+  username: string;
+  userFullName: string;
+  userEmail: string;
+  joinedAt: string;
+}
+
 // API 서비스 함수들
 export const plmApi = {
   // 사용자 등록 (회원가입 API 사용)
@@ -131,6 +142,32 @@ export const plmApi = {
     await api.delete(`/projects/${id}`);
   },
 
+  // ===== 프로젝트 멤버 관리 =====
+  getProjectMembers: async (projectId: number): Promise<ProjectMember[]> => {
+    const response = await api.get(`/projects/${projectId}/members`);
+    return response.data;
+  },
+
+  addProjectMember: async (projectId: number, userId: number): Promise<ProjectMember> => {
+    const response = await api.post(`/projects/${projectId}/members/${userId}`);
+    return response.data;
+  },
+
+  removeProjectMember: async (projectId: number, userId: number): Promise<void> => {
+    await api.delete(`/projects/${projectId}/members/${userId}`);
+  },
+
+  addProjectMembersBulk: async (projectId: number, userIds: number[]): Promise<ProjectMember[]> => {
+    const response = await api.post(`/projects/${projectId}/members/bulk`, userIds);
+    return response.data;
+  },
+
+  getUserProjects: async (userId: number): Promise<Project[]> => {
+    const response = await api.get(`/projects/user/${userId}`);
+    return response.data;
+  },
+
+  // ===== 태스크 관리 =====
   // 태스크 목록 가져오기
   getTasks: async (): Promise<Task[]> => {
     const response = await api.get('/tasks');
