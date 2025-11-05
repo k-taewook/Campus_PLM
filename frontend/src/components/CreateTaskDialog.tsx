@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Plus, User, Calendar, Flag, Clock, X, Search } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
 import { Button } from './ui/button';
@@ -10,22 +10,23 @@ import { Badge } from './ui/badge';
 import { Avatar, AvatarFallback } from './ui/avatar';
 import { Checkbox } from './ui/checkbox';
 import { useProjects } from '../contexts/ProjectContext';
+import api, { plmApi } from '../services/api';
 
 interface CreateTaskDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   projectId: string;
+  onTaskCreated?: () => void;
 }
 
-export default function CreateTaskDialog({ open, onOpenChange, projectId }: CreateTaskDialogProps) {
-  const { createTask, users, projects, currentUser } = useProjects();
+export default function CreateTaskDialog({ open, onOpenChange, projectId, onTaskCreated }: CreateTaskDialogProps) {
+  const { users, currentUser } = useProjects();
   
   const [formData, setFormData] = useState({
     title: '',
     description: '',
     priority: 'medium' as const,
     assigneeIds: [] as string[],
-    estimatedHours: '',
     startDate: '',
     dueDate: '',
     labels: [] as string[]
@@ -33,51 +34,98 @@ export default function CreateTaskDialog({ open, onOpenChange, projectId }: Crea
   
   const [newLabel, setNewLabel] = useState('');
   const [memberSearchQuery, setMemberSearchQuery] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [projectMembers, setProjectMembers] = useState<any[]>([]);
+  const [teamMembers, setTeamMembers] = useState<any[]>([]);
 
-  const project = projects.find(p => p.id === projectId);
-  const teamMembers = users.filter(u => project?.members.some(m => m.userId === u.id));
+  // 프로젝트 멤버 불러오기
+  useEffect(() => {
+    if (open && projectId) {
+      loadProjectMembers();
+    }
+  }, [open, projectId]);
+
+  const loadProjectMembers = async () => {
+    try {
+      const members = await plmApi.getProjectMembers(parseInt(projectId));
+      setProjectMembers(members);
+      
+      // 프로젝트 멤버의 userId로 users에서 찾기
+      const memberUsers = members.map((member: any) => 
+        users.find(u => u.id === member.userId.toString())
+      ).filter(Boolean);
+      
+      setTeamMembers(memberUsers);
+    } catch (error) {
+      console.error('프로젝트 멤버 로드 실패:', error);
+    }
+  };
   
   // 검색어에 따라 팀원 필터링
   const filteredTeamMembers = teamMembers.filter(member => 
-    member.name.toLowerCase().includes(memberSearchQuery.toLowerCase()) ||
-    member.email.toLowerCase().includes(memberSearchQuery.toLowerCase())
+    member && (
+      member.name.toLowerCase().includes(memberSearchQuery.toLowerCase()) ||
+      member.email.toLowerCase().includes(memberSearchQuery.toLowerCase())
+    )
   );
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!formData.title.trim() || !currentUser) return;
+    if (!formData.title.trim() || !currentUser || isSubmitting) return;
 
-    createTask({
-      title: formData.title.trim(),
-      description: formData.description.trim(),
-      status: 'todo',
-      priority: formData.priority,
-      assigneeIds: formData.assigneeIds,
-      reporterId: currentUser.id,
-      projectId,
-      labels: formData.labels,
-      estimatedHours: formData.estimatedHours ? parseInt(formData.estimatedHours) : undefined,
-      startDate: formData.startDate || undefined,
-      dueDate: formData.dueDate || undefined,
-      dependencies: [],
-      subtasks: []
-    });
+    try {
+      setIsSubmitting(true);
 
-    // Reset form
-    setFormData({
-      title: '',
-      description: '',
-      priority: 'medium',
-      assigneeIds: [],
-      estimatedHours: '',
-      startDate: '',
-      dueDate: '',
-      labels: []
-    });
-    setNewLabel('');
-    setMemberSearchQuery('');
-    onOpenChange(false);
+      // 우선순위를 백엔드 형식으로 변환
+      const priorityMap: Record<string, string> = {
+        'low': 'LOW',
+        'medium': 'MEDIUM',
+        'high': 'HIGH',
+        'urgent': 'URGENT'
+      };
+
+      // 날짜를 LocalDateTime 형식으로 변환 (YYYY-MM-DDTHH:mm:ss)
+      let dueDateFormatted = null;
+      if (formData.dueDate) {
+        dueDateFormatted = `${formData.dueDate}T23:59:59`;
+      }
+
+      const taskData = {
+        title: formData.title.trim(),
+        description: formData.description.trim(),
+        status: 'TODO',
+        priority: priorityMap[formData.priority],
+        assigneeId: formData.assigneeIds.length > 0 ? formData.assigneeIds[0] : null,
+        dueDate: dueDateFormatted,
+      };
+
+      console.log('태스크 생성 요청:', taskData);
+
+      await api.post(`/projects/${projectId}/tasks`, taskData);
+
+      // Reset form
+      setFormData({
+        title: '',
+        description: '',
+        priority: 'medium',
+        assigneeIds: [],
+        startDate: '',
+        dueDate: '',
+        labels: []
+      });
+      setNewLabel('');
+      setMemberSearchQuery('');
+      
+      if (onTaskCreated) {
+        onTaskCreated();
+      }
+    } catch (error) {
+      console.error('태스크 생성 실패:', error);
+      alert('태스크 생성에 실패했습니다.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const addLabel = () => {
@@ -139,7 +187,7 @@ export default function CreateTaskDialog({ open, onOpenChange, projectId }: Crea
         <DialogHeader>
           <DialogTitle>새 태스크 생성</DialogTitle>
           <DialogDescription>
-            {project?.name} 프로젝트에 새로운 태스크를 추가합니다.
+            프로젝트에 새로운 태스크를 추가합니다.
           </DialogDescription>
         </DialogHeader>
         
@@ -297,20 +345,8 @@ export default function CreateTaskDialog({ open, onOpenChange, projectId }: Crea
             </div>
           </div>
 
-          {/* Time and Dates */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <Label htmlFor="estimatedHours">예상 시간 (시간)</Label>
-              <Input
-                id="estimatedHours"
-                type="number"
-                min="1"
-                value={formData.estimatedHours}
-                onChange={(e) => setFormData({ ...formData, estimatedHours: e.target.value })}
-                placeholder="예: 8"
-              />
-            </div>
-
+          {/* Dates */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <Label htmlFor="startDate">시작일</Label>
               <Input
@@ -387,9 +423,6 @@ export default function CreateTaskDialog({ open, onOpenChange, projectId }: Crea
                 {formData.assigneeIds.length > 0 && (
                   <span>담당자: {formData.assigneeIds.map(id => teamMembers.find(m => m.id === id)?.name).filter(Boolean).join(', ')}</span>
                 )}
-                {formData.estimatedHours && (
-                  <span>예상: {formData.estimatedHours}시간</span>
-                )}
                 {formData.dueDate && (
                   <span>마감: {new Date(formData.dueDate).toLocaleDateString('ko-KR')}</span>
                 )}
@@ -399,11 +432,11 @@ export default function CreateTaskDialog({ open, onOpenChange, projectId }: Crea
 
           {/* Actions */}
           <div className="flex justify-end gap-2 pt-4 border-t">
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isSubmitting}>
               취소
             </Button>
-            <Button type="submit" disabled={!formData.title.trim()}>
-              태스크 생성
+            <Button type="submit" disabled={!formData.title.trim() || isSubmitting}>
+              {isSubmitting ? '생성 중...' : '태스크 생성'}
             </Button>
           </div>
         </form>

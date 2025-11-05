@@ -74,6 +74,14 @@ public class TaskController {
                          .orElse(ResponseEntity.notFound().build());
     }
     
+    // 태스크 부분 수정 (PATCH)
+    @PatchMapping("/tasks/{id}")
+    public ResponseEntity<TaskDto> partialUpdateTask(@PathVariable Long id, @RequestBody TaskDto taskDto) {
+        Optional<TaskDto> updatedTask = taskService.updateTask(id, taskDto);
+        return updatedTask.map(ResponseEntity::ok)
+                         .orElse(ResponseEntity.notFound().build());
+    }
+    
     // 태스크 상태 변경
     @PutMapping("/tasks/{id}/status")
     public ResponseEntity<TaskDto> updateTaskStatus(@PathVariable Long id, @RequestBody TaskStatusUpdateRequest request) {

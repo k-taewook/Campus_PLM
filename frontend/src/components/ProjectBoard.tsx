@@ -61,6 +61,7 @@ export default function ProjectBoard({ projectId, onBack }: ProjectBoardProps) {
   const [showSettings, setShowSettings] = useState(false);
   const [showEditProject, setShowEditProject] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [taskToDelete, setTaskToDelete] = useState<string | null>(null);
   const [draggedTask, setDraggedTask] = useState<Task | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [assigneeFilter, setAssigneeFilter] = useState('all');
@@ -108,20 +109,28 @@ export default function ProjectBoard({ projectId, onBack }: ProjectBoardProps) {
         members: projectMembers
       });
       
-      setTasks(tasksRes.data.map((t: any) => ({
-        id: t.id.toString(),
-        title: t.title,
-        description: t.description || '',
-        status: t.status.toLowerCase().replace('_', '-'),
-        priority: t.priority.toLowerCase(),
-        assigneeIds: t.assigneeId ? [t.assigneeId.toString()] : [],
-        dueDate: t.dueDate,
-        createdAt: t.createdAt,
-        comments: [],      // 빈 배열로 초기화
-        attachments: [],   // 빈 배열로 초기화
-        labels: [],        // 빈 배열로 초기화
-        progress: 0        // 0으로 초기화
-      })));
+      setTasks(tasksRes.data.map((t: any) => {
+        // 백엔드 상태를 프론트엔드 상태로 매핑
+        let frontendStatus = t.status.toLowerCase().replace('_', '-');
+        if (frontendStatus === 'review') {
+          frontendStatus = 'in-review';  // REVIEW -> in-review
+        }
+        
+        return {
+          id: t.id.toString(),
+          title: t.title,
+          description: t.description || '',
+          status: frontendStatus,
+          priority: t.priority.toLowerCase(),
+          assigneeIds: t.assigneeId ? [t.assigneeId.toString()] : [],
+          dueDate: t.dueDate,
+          createdAt: t.createdAt,
+          comments: [],      // 빈 배열로 초기화
+          attachments: [],   // 빈 배열로 초기화
+          labels: [],        // 빈 배열로 초기화
+          progress: 0        // 0으로 초기화
+        };
+      }));
       
       console.log('프로젝트 로드 완료');
     } catch (error: any) {
@@ -237,6 +246,17 @@ export default function ProjectBoard({ projectId, onBack }: ProjectBoardProps) {
     setDraggedTask(null);
   };
 
+  const handleDeleteTask = async (taskId: string) => {
+    try {
+      await api.delete(`/tasks/${taskId}`);
+      await loadProjectData(); // 목록 새로고침
+      setTaskToDelete(null);
+    } catch (error) {
+      console.error('태스크 삭제 실패:', error);
+      alert('태스크 삭제에 실패했습니다.');
+    }
+  };
+
   const TaskCard = ({ task }: { task: Task }) => {
     const assignees = users.filter(u => task.assigneeIds.includes(u.id));
     const reporter = users.find(u => u.id === task.reporterId);
@@ -266,15 +286,17 @@ export default function ProjectBoard({ projectId, onBack }: ProjectBoardProps) {
                     <Edit className="w-4 h-4 mr-2" />
                     상세보기
                   </DropdownMenuItem>
-                  {canEdit && (
-                    <>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem className="text-red-600">
-                        <Trash2 className="w-4 h-4 mr-2" />
-                        삭제
-                      </DropdownMenuItem>
-                    </>
-                  )}
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem 
+                    className="text-red-600"
+                    onClick={(e: React.MouseEvent) => {
+                      e.stopPropagation();
+                      setTaskToDelete(task.id);
+                    }}
+                  >
+                    <Trash2 className="w-4 h-4 mr-2" />
+                    삭제
+                  </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
@@ -292,43 +314,48 @@ export default function ProjectBoard({ projectId, onBack }: ProjectBoardProps) {
               ))}
             </div>
 
+            {/* 담당자 정보 */}
+            {assignees.length > 0 && (
+              <div className="flex items-center gap-2">
+                <div className="flex -space-x-2">
+                  {assignees.slice(0, 3).map(assignee => (
+                    <Avatar key={assignee.id} className="w-6 h-6 border-2 border-white">
+                      <AvatarFallback className="bg-blue-100 text-blue-600 text-xs">
+                        {assignee.name.charAt(0)}
+                      </AvatarFallback>
+                    </Avatar>
+                  ))}
+                </div>
+                <div className="text-xs text-gray-600">
+                  <span className="font-medium">{assignees[0].name}</span>
+                  {assignees.length > 1 && (
+                    <span className="text-gray-500"> 외 {assignees.length - 1}명</span>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* Progress */}
-            {task.progress && task.progress > 0 && (
+            {task.progress !== undefined && task.progress >= 0 && (
               <div className="space-y-1">
                 <div className="flex justify-between text-xs">
-                  <span>진행률</span>
-                  <span>{task.progress}%</span>
+                  <span className="text-gray-600">진행률</span>
+                  <span className="font-medium">{task.progress}%</span>
                 </div>
-                <Progress value={task.progress} className="h-1" />
+                <Progress value={task.progress} className="h-2" />
               </div>
             )}
 
             {/* Bottom info */}
-            <div className="flex items-center justify-between text-xs">
-              <div className="flex items-center gap-2">
-                {assignees.length > 0 && (
-                  <div className="flex -space-x-1">
-                    {assignees.slice(0, 3).map(assignee => (
-                      <Avatar key={assignee.id} className="w-5 h-5 border border-white">
-                        <AvatarFallback className="bg-blue-100 text-blue-600 text-xs">
-                          {assignee.name.charAt(0)}
-                        </AvatarFallback>
-                      </Avatar>
-                    ))}
-                    {assignees.length > 3 && (
-                      <div className="w-5 h-5 bg-gray-100 rounded-full border border-white flex items-center justify-center">
-                        <span className="text-xs text-gray-600">+{assignees.length - 3}</span>
-                      </div>
-                    )}
-                  </div>
-                )}
-                {task.comments.length > 0 && (
+            <div className="flex items-center justify-between text-xs pt-2 border-t">
+              <div className="flex items-center gap-3">
+                {task.comments && task.comments.length > 0 && (
                   <div className="flex items-center gap-1 text-gray-500">
                     <MessageCircle className="w-3 h-3" />
                     <span>{task.comments.length}</span>
                   </div>
                 )}
-                {task.attachments.length > 0 && (
+                {task.attachments && task.attachments.length > 0 && (
                   <div className="flex items-center gap-1 text-gray-500">
                     <Paperclip className="w-3 h-3" />
                     <span>{task.attachments.length}</span>
@@ -337,8 +364,8 @@ export default function ProjectBoard({ projectId, onBack }: ProjectBoardProps) {
               </div>
               {task.dueDate && (
                 <div className={`flex items-center gap-1 ${
-                  daysUntil !== null && daysUntil < 0 ? 'text-red-600' : 
-                  daysUntil !== null && daysUntil <= 2 ? 'text-orange-600' : 'text-gray-500'
+                  daysUntil !== null && daysUntil < 0 ? 'text-red-600 font-medium' : 
+                  daysUntil !== null && daysUntil <= 2 ? 'text-orange-600 font-medium' : 'text-gray-500'
                 }`}>
                   <Calendar className="w-3 h-3" />
                   <span>{formatDate(task.dueDate)}</span>
@@ -366,7 +393,11 @@ export default function ProjectBoard({ projectId, onBack }: ProjectBoardProps) {
     return (
       <TaskDetail 
         taskId={selectedTaskId} 
-        onBack={() => setSelectedTaskId(null)} 
+        onBack={() => setSelectedTaskId(null)}
+        onTaskUpdated={() => {
+          // 태스크 목록 새로고침
+          loadProjectData();
+        }}
       />
     );
   }
@@ -634,6 +665,10 @@ export default function ProjectBoard({ projectId, onBack }: ProjectBoardProps) {
         open={showCreateTask}
         onOpenChange={setShowCreateTask}
         projectId={projectId}
+        onTaskCreated={() => {
+          loadProjectData();
+          setShowCreateTask(false);
+        }}
       />
 
       {/* Edit Project Dialog */}
@@ -664,6 +699,31 @@ export default function ProjectBoard({ projectId, onBack }: ProjectBoardProps) {
             }
           }}
         />
+      )}
+
+      {/* Task Delete Confirmation Dialog */}
+      {taskToDelete && (
+        <Dialog open={!!taskToDelete} onOpenChange={() => setTaskToDelete(null)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>태스크 삭제</DialogTitle>
+              <DialogDescription>
+                이 태스크를 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex justify-end gap-2 mt-4">
+              <Button variant="outline" onClick={() => setTaskToDelete(null)}>
+                취소
+              </Button>
+              <Button 
+                variant="destructive" 
+                onClick={() => handleDeleteTask(taskToDelete)}
+              >
+                삭제
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       )}
     </div>
   );

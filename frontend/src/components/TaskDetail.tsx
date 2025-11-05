@@ -29,6 +29,7 @@ import { Label } from './ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Separator } from './ui/separator';
 import { Checkbox } from './ui/checkbox';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from './ui/dropdown-menu';
 import { useProjects, type Task, type Attachment } from '../contexts/ProjectContext';
 import api from '../services/api';
@@ -36,9 +37,10 @@ import api from '../services/api';
 interface TaskDetailProps {
   taskId: string;
   onBack: () => void;
+  onTaskUpdated?: () => void;  // 태스크 업데이트 시 호출될 콜백
 }
 
-export default function TaskDetail({ taskId, onBack }: TaskDetailProps) {
+export default function TaskDetail({ taskId, onBack, onTaskUpdated }: TaskDetailProps) {
   const { 
     users, 
     currentUser,
@@ -59,6 +61,7 @@ export default function TaskDetail({ taskId, onBack }: TaskDetailProps) {
   const [showLinkForm, setShowLinkForm] = useState(false);
   const [timeLog, setTimeLog] = useState({ hours: '', description: '' });
   const [showTimeLog, setShowTimeLog] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -71,11 +74,28 @@ export default function TaskDetail({ taskId, onBack }: TaskDetailProps) {
       const response = await api.get(`/tasks/${taskId}`);
       const taskData = response.data;
       
+      // 백엔드 상태를 프론트엔드 형식으로 변환
+      const statusMap: Record<string, string> = {
+        'TODO': 'todo',
+        'IN_PROGRESS': 'in-progress',
+        'REVIEW': 'in-review',  // REVIEW -> in-review
+        'DONE': 'done',
+        'CANCELLED': 'cancelled'
+      };
+      
+      const frontendStatus = statusMap[taskData.status] || taskData.status.toLowerCase().replace('_', '-');
+      
+      console.log('태스크 로드:', {
+        백엔드상태: taskData.status,
+        프론트엔드상태: frontendStatus,
+        매핑테이블: statusMap
+      });
+      
       setTask({
         id: taskData.id.toString(),
         title: taskData.title,
         description: taskData.description || '',
-        status: taskData.status.toLowerCase().replace('_', '-'),
+        status: frontendStatus,
         priority: taskData.priority.toLowerCase(),
         assigneeIds: taskData.assigneeId ? [taskData.assigneeId.toString()] : [],
         reporterId: taskData.reporterId?.toString() || '',
@@ -156,10 +176,18 @@ export default function TaskDetail({ taskId, onBack }: TaskDetailProps) {
   const handleSave = async () => {
     try {
       // API 형식에 맞게 데이터 변환
+      const statusMap: Record<string, string> = {
+        'todo': 'TODO',
+        'in-progress': 'IN_PROGRESS',
+        'in-review': 'REVIEW',
+        'done': 'DONE',
+        'cancelled': 'CANCELLED'
+      };
+      
       const updateData: any = {
         title: editData.title,
         description: editData.description || null,
-        status: editData.status.toUpperCase().replace('-', '_'),
+        status: statusMap[editData.status] || editData.status.toUpperCase().replace('-', '_'),
         priority: editData.priority.toUpperCase(),
         estimatedHours: editData.estimatedHours || null,
         startDate: editData.startDate || null,
@@ -176,6 +204,11 @@ export default function TaskDetail({ taskId, onBack }: TaskDetailProps) {
       // 데이터 새로고침
       await loadTaskData();
       
+      // 부모 컴포넌트에 업데이트 알림
+      if (onTaskUpdated) {
+        onTaskUpdated();
+      }
+      
       setIsEditing(false);
       setEditData({});
       alert('태스크가 수정되었습니다!');
@@ -188,6 +221,18 @@ export default function TaskDetail({ taskId, onBack }: TaskDetailProps) {
   const handleCancel = () => {
     setIsEditing(false);
     setEditData({});
+  };
+
+  const handleDelete = async () => {
+    try {
+      await api.delete(`/tasks/${taskId}`);
+      setShowDeleteConfirm(false);
+      alert('태스크가 삭제되었습니다.');
+      onBack(); // 목록으로 돌아가기
+    } catch (error) {
+      console.error('태스크 삭제 실패:', error);
+      alert('태스크 삭제에 실패했습니다.');
+    }
   };
 
   const handleAddComment = () => {
@@ -238,11 +283,29 @@ export default function TaskDetail({ taskId, onBack }: TaskDetailProps) {
 
   const updateStatus = async (newStatus: string) => {
     try {
-      const updateData = {
-        status: newStatus.toUpperCase().replace('-', '_')
+      // 프론트엔드 상태를 백엔드 enum 값으로 변환
+      const statusMap: Record<string, string> = {
+        'todo': 'TODO',
+        'in-progress': 'IN_PROGRESS',
+        'in-review': 'REVIEW',  // 백엔드는 REVIEW 사용
+        'done': 'DONE',
+        'cancelled': 'CANCELLED'
       };
+      
+      const backendStatus = statusMap[newStatus] || newStatus.toUpperCase().replace('-', '_');
+      
+      const updateData = {
+        status: backendStatus
+      };
+      
+      console.log('상태 변경:', newStatus, '->', backendStatus);
       await api.patch(`/tasks/${taskId}`, updateData);
       await loadTaskData();
+      
+      // 부모 컴포넌트에 업데이트 알림
+      if (onTaskUpdated) {
+        onTaskUpdated();
+      }
     } catch (error) {
       console.error('상태 변경 실패:', error);
       alert('상태 변경에 실패했습니다.');
@@ -256,6 +319,26 @@ export default function TaskDetail({ taskId, onBack }: TaskDetailProps) {
       case 'in-review': return 'bg-purple-100 text-purple-800';
       case 'todo': return 'bg-gray-100 text-gray-800';
       default: return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const getStatusLabel = (status: string) => {
+    switch (status) {
+      case 'done': return '완료';
+      case 'in-progress': return '진행 중';
+      case 'in-review': return '리뷰 중';
+      case 'todo': return '할 일';
+      default: return status;
+    }
+  };
+
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'done': return <CheckCircle className="w-3 h-3" />;
+      case 'in-progress': return <Play className="w-3 h-3" />;
+      case 'in-review': return <Pause className="w-3 h-3" />;
+      case 'todo': return <Clock className="w-3 h-3" />;
+      default: return <Clock className="w-3 h-3" />;
     }
   };
 
@@ -346,9 +429,42 @@ export default function TaskDetail({ taskId, onBack }: TaskDetailProps) {
                       <CardTitle className="text-xl">{task.title}</CardTitle>
                     )}
                     <div className="flex items-center gap-2 mt-2">
-                      <Badge className={getStatusColor(task.status)}>
-                        {task.status}
-                      </Badge>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="outline" size="sm" className={`${getStatusColor(task.status)} border-0`}>
+                            {getStatusIcon(task.status)}
+                            <span className="ml-1">{getStatusLabel(task.status)}</span>
+                            <MoreHorizontal className="w-3 h-3 ml-2" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="start">
+                          <DropdownMenuItem onClick={() => updateStatus('todo')}>
+                            <div className="flex items-center gap-2">
+                              <div className="w-2 h-2 rounded-full bg-gray-500" />
+                              할 일
+                            </div>
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => updateStatus('in-progress')}>
+                            <div className="flex items-center gap-2">
+                              <div className="w-2 h-2 rounded-full bg-blue-500" />
+                              진행 중
+                            </div>
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => updateStatus('in-review')}>
+                            <div className="flex items-center gap-2">
+                              <div className="w-2 h-2 rounded-full bg-purple-500" />
+                              리뷰 중
+                            </div>
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => updateStatus('done')}>
+                            <div className="flex items-center gap-2">
+                              <div className="w-2 h-2 rounded-full bg-green-500" />
+                              완료
+                            </div>
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                      
                       <Badge className={getPriorityColor(task.priority)}>
                         <Flag className="w-3 h-3 mr-1" />
                         {task.priority}
@@ -356,26 +472,89 @@ export default function TaskDetail({ taskId, onBack }: TaskDetailProps) {
                     </div>
                   </div>
                   
-                  {/* Quick Actions */}
-                  <div className="flex gap-2">
-                    {task.status !== 'in-progress' && (
-                      <Button size="sm" variant="outline" onClick={() => updateStatus('in-progress')}>
+                  {/* Quick Actions - 상태별 빠른 액션 버튼 */}
+                  <div className="flex gap-2 items-center flex-wrap">
+                    {/* todo 상태일 때 */}
+                    {task.status?.toLowerCase().trim() === 'todo' && (
+                      <Button 
+                        size="sm" 
+                        onClick={() => updateStatus('in-progress')} 
+                        style={{backgroundColor: '#2563eb', color: '#ffffff'}}
+                        className="hover:bg-blue-700"
+                      >
                         <Play className="w-3 h-3 mr-1" />
-                        시작
+                        시작하기
                       </Button>
                     )}
-                    {task.status === 'in-progress' && (
-                      <Button size="sm" variant="outline" onClick={() => updateStatus('in-review')}>
-                        <Pause className="w-3 h-3 mr-1" />
-                        리뷰 요청
+                    
+                    {/* in-progress 상태일 때 */}
+                    {task.status?.toLowerCase().replace('_', '-').trim() === 'in-progress' && (
+                      <>
+                        <Button 
+                          size="sm" 
+                          variant="outline" 
+                          onClick={() => updateStatus('todo')}
+                          style={{color: '#000000'}}
+                        >
+                          <Pause className="w-3 h-3 mr-1" />
+                          일시정지
+                        </Button>
+                        <Button 
+                          size="sm" 
+                          onClick={() => updateStatus('in-review')} 
+                          style={{backgroundColor: '#9333ea', color: '#ffffff'}}
+                          className="hover:bg-purple-700"
+                        >
+                          리뷰 요청
+                        </Button>
+                      </>
+                    )}
+                    
+                    {/* in-review 상태일 때 */}
+                    {(task.status?.toLowerCase().replace('_', '-').trim() === 'in-review' || 
+                      task.status?.toLowerCase().trim() === 'review') && (
+                      <>
+                        <Button 
+                          size="sm" 
+                          variant="outline" 
+                          onClick={() => updateStatus('in-progress')}
+                          style={{color: '#000000'}}
+                        >
+                          수정 필요
+                        </Button>
+                        <Button 
+                          size="sm" 
+                          onClick={() => updateStatus('done')} 
+                          style={{backgroundColor: '#16a34a', color: '#ffffff'}}
+                          className="hover:bg-green-700"
+                        >
+                          <CheckCircle className="w-3 h-3 mr-1" />
+                          완료
+                        </Button>
+                      </>
+                    )}
+                    
+                    {/* done 상태일 때 */}
+                    {task.status?.toLowerCase().trim() === 'done' && (
+                      <Button 
+                        size="sm" 
+                        variant="outline" 
+                        onClick={() => updateStatus('in-progress')}
+                        style={{color: '#000000'}}
+                      >
+                        재작업
                       </Button>
                     )}
-                    {task.status !== 'done' && (
-                      <Button size="sm" onClick={() => updateStatus('done')}>
-                        <CheckCircle className="w-3 h-3 mr-1" />
-                        완료
-                      </Button>
-                    )}
+                    
+                    {/* 삭제 버튼 */}
+                    <Button 
+                      size="sm" 
+                      variant="destructive"
+                      onClick={() => setShowDeleteConfirm(true)}
+                    >
+                      <Trash2 className="w-3 h-3 mr-1" />
+                      삭제
+                    </Button>
                   </div>
                 </div>
               </CardHeader>
@@ -859,6 +1038,27 @@ export default function TaskDetail({ taskId, onBack }: TaskDetailProps) {
           </div>
         )}
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>태스크 삭제</DialogTitle>
+            <DialogDescription>
+              "{task.title}" 태스크를 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-2 mt-4">
+            <Button variant="outline" onClick={() => setShowDeleteConfirm(false)}>
+              취소
+            </Button>
+            <Button variant="destructive" onClick={handleDelete}>
+              <Trash2 className="w-4 h-4 mr-2" />
+              삭제
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
