@@ -10,7 +10,7 @@ spring:
       
   jpa:
     hibernate:
-      ddl-auto: create-drop  # 개발환경: 재시작시 테이블 재생성
+      ddl-auto: update  # 개발환경: 스키마 자동 업데이트 (데이터 유지)
     show-sql: true
     properties:
       hibernate:

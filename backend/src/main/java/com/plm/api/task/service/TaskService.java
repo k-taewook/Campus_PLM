@@ -152,6 +152,7 @@ public class TaskService {
         task.setStatus(dto.getStatus());
         task.setPriority(dto.getPriority());
         task.setAssigneeId(dto.getAssigneeId());
+        task.setStartDate(dto.getStartDate());
         task.setDueDate(dto.getDueDate());
         return task;
     }
@@ -173,8 +174,14 @@ public class TaskService {
         if (taskDto.getAssigneeId() != null) {
             existingTask.setAssigneeId(taskDto.getAssigneeId());
         }
+        if (taskDto.getStartDate() != null) {
+            existingTask.setStartDate(taskDto.getStartDate());
+        }
         if (taskDto.getDueDate() != null) {
             existingTask.setDueDate(taskDto.getDueDate());
+        }
+        if (taskDto.getProgress() != null) {
+            existingTask.setProgress(taskDto.getProgress());
         }
     }
 }

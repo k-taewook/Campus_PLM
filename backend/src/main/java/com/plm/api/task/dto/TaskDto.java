@@ -13,11 +13,13 @@ public class TaskDto {
     private TaskStatus status;
     private Priority priority;
     private String assigneeId;
+    private LocalDateTime startDate;
     private LocalDateTime dueDate;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
     private Long projectId;
     private String projectName;
+    private Integer progress;  // 진행률 (0-100)
     
     // 기본 생성자
     public TaskDto() {}
@@ -30,9 +32,11 @@ public class TaskDto {
         this.status = task.getStatus();
         this.priority = task.getPriority();
         this.assigneeId = task.getAssigneeId();
+        this.startDate = task.getStartDate();
         this.dueDate = task.getDueDate();
         this.createdAt = task.getCreatedAt();
         this.updatedAt = task.getUpdatedAt();
+        this.progress = task.getProgress();
         if (task.getProject() != null) {
             this.projectId = task.getProject().getId();
             this.projectName = task.getProject().getName();
@@ -105,6 +109,14 @@ public class TaskDto {
         this.assigneeId = assigneeId;
     }
     
+    public LocalDateTime getStartDate() {
+        return startDate;
+    }
+    
+    public void setStartDate(LocalDateTime startDate) {
+        this.startDate = startDate;
+    }
+    
     public LocalDateTime getDueDate() {
         return dueDate;
     }
@@ -143,5 +155,13 @@ public class TaskDto {
     
     public void setProjectName(String projectName) {
         this.projectName = projectName;
+    }
+    
+    public Integer getProgress() {
+        return progress;
+    }
+    
+    public void setProgress(Integer progress) {
+        this.progress = progress;
     }
 }

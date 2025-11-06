@@ -16,7 +16,8 @@ import {
   Trash2,
   Play,
   Pause,
-  CheckCircle
+  CheckCircle,
+  Plus
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
@@ -33,6 +34,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from './ui/dropdown-menu';
 import { useProjects, type Task, type Attachment } from '../contexts/ProjectContext';
 import api from '../services/api';
+import EditTaskDialog from './EditTaskDialog';
 
 interface TaskDetailProps {
   taskId: string;
@@ -55,6 +57,7 @@ export default function TaskDetail({ taskId, onBack, onTaskUpdated }: TaskDetail
   const [project, setProject] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
+  const [showEditDialog, setShowEditDialog] = useState(false);
   const [editData, setEditData] = useState<any>({});
   const [newComment, setNewComment] = useState('');
   const [newLink, setNewLink] = useState({ name: '', url: '' });
@@ -62,11 +65,24 @@ export default function TaskDetail({ taskId, onBack, onTaskUpdated }: TaskDetail
   const [timeLog, setTimeLog] = useState({ hours: '', description: '' });
   const [showTimeLog, setShowTimeLog] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  
+  // 체크리스트 관련 상태
+  const [checklist, setChecklist] = useState<Array<{ id: string; text: string; completed: boolean }>>([]);
+  const [newChecklistItem, setNewChecklistItem] = useState('');
+  const [showChecklistForm, setShowChecklistForm] = useState(false);
+  
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     loadTaskData();
   }, [taskId]);
+
+  // 체크리스트 변경 시 localStorage에 저장
+  useEffect(() => {
+    if (task) {  // task가 로드된 후에만 저장
+      localStorage.setItem(`checklist_${taskId}`, JSON.stringify(checklist));
+    }
+  }, [checklist, taskId, task]);
 
   const loadTaskData = async () => {
     try {
@@ -97,7 +113,9 @@ export default function TaskDetail({ taskId, onBack, onTaskUpdated }: TaskDetail
         description: taskData.description || '',
         status: frontendStatus,
         priority: taskData.priority.toLowerCase(),
-        assigneeIds: taskData.assigneeId ? [taskData.assigneeId.toString()] : [],
+        assigneeIds: taskData.assigneeId 
+          ? taskData.assigneeId.split(',').map((id: string) => id.trim()).filter((id: string) => id !== '')
+          : [],
         reporterId: taskData.reporterId?.toString() || '',
         dueDate: taskData.dueDate,
         startDate: taskData.startDate,
@@ -112,6 +130,45 @@ export default function TaskDetail({ taskId, onBack, onTaskUpdated }: TaskDetail
         subtasks: [],
         timeLogs: []
       });
+
+      // 체크리스트 로드 (localStorage에서)
+      const savedChecklist = localStorage.getItem(`checklist_${taskId}`);
+      let loadedChecklist: typeof checklist = [];
+      if (savedChecklist) {
+        loadedChecklist = JSON.parse(savedChecklist);
+        setChecklist(loadedChecklist);
+      }
+
+      // 진행률 자동 수정: 데이터베이스 값이 0이고 체크리스트도 없으면 상태 기반으로 업데이트
+      const dbProgress = taskData.progress || 0;
+      const shouldUpdateProgress = dbProgress === 0 && loadedChecklist.length === 0 && frontendStatus !== 'todo';
+      
+      if (shouldUpdateProgress) {
+        let calculatedProgress = 0;
+        switch (frontendStatus) {
+          case 'in-progress': calculatedProgress = 50; break;
+          case 'in-review': calculatedProgress = 75; break;
+          case 'done': calculatedProgress = 100; break;
+          default: calculatedProgress = 0;
+        }
+        
+        if (calculatedProgress > 0) {
+          console.log('진행률 자동 수정:', { 
+            현재진행률: dbProgress, 
+            상태: frontendStatus, 
+            새진행률: calculatedProgress 
+          });
+          
+          // 백엔드에 진행률 업데이트
+          try {
+            await api.patch(`/tasks/${taskId}`, { progress: calculatedProgress });
+            // 로컬 상태도 업데이트
+            setTask((prev: any) => prev ? { ...prev, progress: calculatedProgress } : prev);
+          } catch (error) {
+            console.error('진행률 자동 업데이트 실패:', error);
+          }
+        }
+      }
 
       // 프로젝트 정보 로드
       if (taskData.projectId) {
@@ -157,7 +214,7 @@ export default function TaskDetail({ taskId, onBack, onTaskUpdated }: TaskDetail
 
   const assignees = users.filter(u => task.assigneeIds.includes(u.id));
   const reporter = users.find(u => u.id === task.reporterId);
-  const canEdit = canEditTask(taskId);
+  const canEdit = true; // API 기반 시스템에서는 항상 편집 가능
 
   const handleEdit = () => {
     setEditData({
@@ -194,9 +251,11 @@ export default function TaskDetail({ taskId, onBack, onTaskUpdated }: TaskDetail
         dueDate: editData.dueDate || null
       };
 
-      // assigneeId는 단일 값만 지원 (첫 번째 담당자만)
+      // assigneeIds를 쉼표로 구분된 문자열로 변환
       if (editData.assigneeIds && editData.assigneeIds.length > 0) {
-        updateData.assigneeId = parseInt(editData.assigneeIds[0]);
+        updateData.assigneeId = editData.assigneeIds.join(',');
+      } else {
+        updateData.assigneeId = null;
       }
 
       await api.put(`/tasks/${taskId}`, updateData);
@@ -294,11 +353,28 @@ export default function TaskDetail({ taskId, onBack, onTaskUpdated }: TaskDetail
       
       const backendStatus = statusMap[newStatus] || newStatus.toUpperCase().replace('-', '_');
       
+      // 상태 기반 진행률 계산 (체크리스트가 없을 때)
+      let progressValue = 0;
+      if (checklist.length === 0) {
+        switch (newStatus) {
+          case 'todo': progressValue = 0; break;
+          case 'in-progress': progressValue = 50; break;
+          case 'in-review': progressValue = 75; break;
+          case 'done': progressValue = 100; break;
+          default: progressValue = 0;
+        }
+      } else {
+        // 체크리스트가 있으면 현재 진행률 유지
+        const completedCount = checklist.filter(item => item.completed).length;
+        progressValue = Math.round((completedCount / checklist.length) * 100);
+      }
+      
       const updateData = {
-        status: backendStatus
+        status: backendStatus,
+        progress: progressValue
       };
       
-      console.log('상태 변경:', newStatus, '->', backendStatus);
+      console.log('상태 변경:', newStatus, '->', backendStatus, '진행률:', progressValue);
       await api.patch(`/tasks/${taskId}`, updateData);
       await loadTaskData();
       
@@ -310,6 +386,111 @@ export default function TaskDetail({ taskId, onBack, onTaskUpdated }: TaskDetail
       console.error('상태 변경 실패:', error);
       alert('상태 변경에 실패했습니다.');
     }
+  };
+
+  // 진행률 계산 (하이브리드 방식)
+  const calculateProgress = () => {
+    // 1. 체크리스트가 있으면 체크리스트 기반 계산
+    if (checklist.length > 0) {
+      const completedCount = checklist.filter(item => item.completed).length;
+      return Math.round((completedCount / checklist.length) * 100);
+    }
+    
+    // 2. 체크리스트가 없으면 상태 기반 계산 (폴백)
+    switch (task?.status) {
+      case 'todo': return 0;
+      case 'in-progress': return 50;
+      case 'in-review': return 75;
+      case 'done': return 100;
+      default: return 0;
+    }
+  };
+
+  // 체크리스트 항목 추가
+  const addChecklistItem = () => {
+    if (!newChecklistItem.trim()) return;
+    
+    const newItem = {
+      id: Date.now().toString(),
+      text: newChecklistItem.trim(),
+      completed: false
+    };
+    
+    const updatedChecklist = [...checklist, newItem];
+    setChecklist(updatedChecklist);
+    setNewChecklistItem('');
+    setShowChecklistForm(false);
+    
+    // 진행률 업데이트 (새 체크리스트 기준)
+    updateProgressWithChecklist(updatedChecklist);
+  };
+
+  // 체크리스트 항목 토글
+  const toggleChecklistItem = (id: string) => {
+    const updatedChecklist = checklist.map(item =>
+      item.id === id ? { ...item, completed: !item.completed } : item
+    );
+    setChecklist(updatedChecklist);
+    
+    // 진행률 업데이트 (새 체크리스트 기준)
+    updateProgressWithChecklist(updatedChecklist);
+  };
+
+  // 체크리스트 항목 삭제
+  const deleteChecklistItem = (id: string) => {
+    const updatedChecklist = checklist.filter(item => item.id !== id);
+    setChecklist(updatedChecklist);
+    
+    // 진행률 업데이트 (새 체크리스트 기준)
+    updateProgressWithChecklist(updatedChecklist);
+  };
+
+  // 진행률 백엔드에 업데이트 (체크리스트 전달 받음)
+  const updateProgressWithChecklist = async (currentChecklist: typeof checklist) => {
+    try {
+      // 체크리스트 기반 진행률 계산
+      let newProgress = 0;
+      if (currentChecklist.length > 0) {
+        const completedCount = currentChecklist.filter(item => item.completed).length;
+        newProgress = Math.round((completedCount / currentChecklist.length) * 100);
+      } else {
+        // 체크리스트가 없으면 상태 기반
+        switch (task?.status) {
+          case 'todo': newProgress = 0; break;
+          case 'in-progress': newProgress = 50; break;
+          case 'in-review': newProgress = 75; break;
+          case 'done': newProgress = 100; break;
+          default: newProgress = 0;
+        }
+      }
+      
+      console.log('진행률 업데이트:', { 
+        체크리스트: currentChecklist.length, 
+        완료: currentChecklist.filter(i => i.completed).length,
+        진행률: newProgress 
+      });
+      
+      const response = await api.patch(`/tasks/${taskId}`, {
+        progress: newProgress
+      });
+      
+      console.log('진행률 업데이트 성공:', response.data);
+      
+      // 로컬 상태 업데이트
+      setTask((prevTask: any) => prevTask ? { ...prevTask, progress: newProgress } : prevTask);
+      
+      // 부모 컴포넌트에 알림
+      if (onTaskUpdated) {
+        onTaskUpdated();
+      }
+    } catch (error) {
+      console.error('진행률 업데이트 실패:', error);
+    }
+  };
+
+  // 진행률 백엔드에 업데이트 (기존 함수 - 현재 checklist 상태 사용)
+  const updateProgress = async () => {
+    await updateProgressWithChecklist(checklist);
   };
 
   const getStatusColor = (status: string) => {
@@ -402,9 +583,9 @@ export default function TaskDetail({ taskId, onBack, onTaskUpdated }: TaskDetail
                   </Button>
                 </>
               ) : (
-                <Button onClick={handleEdit}>
+                <Button onClick={() => setShowEditDialog(true)}>
                   <Edit className="w-4 h-4 mr-2" />
-                  편집
+                  태스크 수정
                 </Button>
               )}
             </div>
@@ -578,10 +759,99 @@ export default function TaskDetail({ taskId, onBack, onTaskUpdated }: TaskDetail
                 <div>
                   <div className="flex justify-between items-center mb-2">
                     <Label>진행률</Label>
-                    <span className="text-sm font-medium">{task.progress}%</span>
+                    <span className="text-sm font-medium">{calculateProgress()}%</span>
                   </div>
-                  <Progress value={task.progress} className="h-3" />
+                  <Progress value={calculateProgress()} className="h-3" />
+                  {checklist.length > 0 && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      체크리스트 기반: {checklist.filter(item => item.completed).length}/{checklist.length} 완료
+                    </p>
+                  )}
                 </div>
+
+                {/* Checklist */}
+                <Card className="border-dashed">
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-base">체크리스트</CardTitle>
+                      <Button 
+                        size="sm" 
+                        variant="ghost"
+                        onClick={() => setShowChecklistForm(!showChecklistForm)}
+                      >
+                        <Plus className="w-4 h-4 mr-1" />
+                        항목 추가
+                      </Button>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-2">
+                    {/* 체크리스트 항목들 */}
+                    {checklist.length > 0 ? (
+                      <div className="space-y-2">
+                        {checklist.map((item) => (
+                          <div 
+                            key={item.id} 
+                            className="flex items-center gap-3 p-2 rounded hover:bg-gray-50 group"
+                          >
+                            <Checkbox
+                              checked={item.completed}
+                              onCheckedChange={() => toggleChecklistItem(item.id)}
+                            />
+                            <span 
+                              className={`flex-1 ${item.completed ? 'line-through text-gray-400' : ''}`}
+                            >
+                              {item.text}
+                            </span>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="opacity-0 group-hover:opacity-100 transition-opacity"
+                              onClick={() => deleteChecklistItem(item.id)}
+                            >
+                              <Trash2 className="w-3 h-3 text-red-500" />
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-center py-6 text-gray-400">
+                        <CheckCircle className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                        <p className="text-sm">체크리스트가 없습니다</p>
+                        <p className="text-xs mt-1">항목을 추가하여 작업을 관리하세요</p>
+                      </div>
+                    )}
+
+                    {/* 새 항목 추가 폼 */}
+                    {showChecklistForm && (
+                      <div className="flex gap-2 pt-2 border-t">
+                        <Input
+                          placeholder="새 체크리스트 항목..."
+                          value={newChecklistItem}
+                          onChange={(e) => setNewChecklistItem(e.target.value)}
+                          onKeyPress={(e) => {
+                            if (e.key === 'Enter') {
+                              addChecklistItem();
+                            }
+                          }}
+                          autoFocus
+                        />
+                        <Button size="sm" onClick={addChecklistItem}>
+                          추가
+                        </Button>
+                        <Button 
+                          size="sm" 
+                          variant="ghost"
+                          onClick={() => {
+                            setShowChecklistForm(false);
+                            setNewChecklistItem('');
+                          }}
+                        >
+                          취소
+                        </Button>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
 
                 {/* Time Tracking */}
                 <div className="grid grid-cols-2 gap-4">
@@ -861,22 +1131,6 @@ export default function TaskDetail({ taskId, onBack, onTaskUpdated }: TaskDetail
                 </div>
 
                 <div>
-                  <Label>보고자</Label>
-                  <div className="mt-1 flex items-center gap-2">
-                    {reporter && (
-                      <>
-                        <Avatar className="w-6 h-6">
-                          <AvatarFallback className="bg-blue-100 text-blue-600 text-xs">
-                            {reporter.name.charAt(0)}
-                          </AvatarFallback>
-                        </Avatar>
-                        <span className="text-sm">{reporter.name}</span>
-                      </>
-                    )}
-                  </div>
-                </div>
-
-                <div>
                   <Label>상태</Label>
                   {isEditing ? (
                     <Select value={editData.status || task.status} onValueChange={(value: any) => setEditData({ ...editData, status: value })}>
@@ -1059,6 +1313,30 @@ export default function TaskDetail({ taskId, onBack, onTaskUpdated }: TaskDetail
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* 태스크 수정 다이얼로그 */}
+      {project && (
+        <EditTaskDialog
+          open={showEditDialog}
+          onClose={() => setShowEditDialog(false)}
+          taskId={taskId}
+          projectId={project.id}
+          initialData={{
+            title: task.title,
+            description: task.description,
+            status: task.status,
+            priority: task.priority,
+            assigneeId: task.assigneeIds && task.assigneeIds.length > 0 ? task.assigneeIds.join(',') : undefined,
+            dueDate: task.dueDate
+          }}
+          onTaskUpdated={() => {
+            loadTaskData();
+            if (onTaskUpdated) {
+              onTaskUpdated();
+            }
+          }}
+        />
+      )}
     </div>
   );
 }

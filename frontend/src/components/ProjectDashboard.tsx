@@ -121,26 +121,42 @@ export default function ProjectDashboard({ onProjectSelect, onCreateProject }: P
     updatedAt: p.updatedAt,
     tasks: apiTasks
       .filter(t => t.projectId === p.id)
-      .map(t => ({
-        id: t.id.toString(),
-        title: t.title,
-        description: t.description || '',
-        status: t.status.toLowerCase().replace('_', '-') as any,
-        priority: t.priority.toLowerCase() as any,
-        assigneeIds: t.assigneeId ? [t.assigneeId.toString()] : [],
-        reporterId: '1',
-        projectId: t.projectId.toString(),
-        labels: [],
-        loggedHours: 0,
-        progress: t.status === 'DONE' ? 100 : t.status === 'IN_PROGRESS' ? 50 : 0,
-        dueDate: t.dueDate,
-        createdAt: t.createdAt,
-        updatedAt: t.updatedAt,
-        comments: [],
-        attachments: [],
-        dependencies: [],
-        subtasks: []
-      })),
+      .map(t => {
+        // 백엔드 상태 매핑
+        let frontendStatus = t.status.toLowerCase().replace('_', '-');
+        if (frontendStatus === 'review') frontendStatus = 'in-review';
+        
+        // 진행률 계산 (API에 있으면 사용, 없으면 상태 기반)
+        let taskProgress = (t as any).progress || 0;
+        if (taskProgress === 0 && frontendStatus !== 'todo') {
+          switch (frontendStatus) {
+            case 'in-progress': taskProgress = 50; break;
+            case 'in-review': taskProgress = 75; break;
+            case 'done': taskProgress = 100; break;
+          }
+        }
+        
+        return {
+          id: t.id.toString(),
+          title: t.title,
+          description: t.description || '',
+          status: frontendStatus as any,
+          priority: t.priority.toLowerCase() as any,
+          assigneeIds: t.assigneeId ? [t.assigneeId.toString()] : [],
+          reporterId: '1',
+          projectId: t.projectId.toString(),
+          labels: [],
+          loggedHours: 0,
+          progress: taskProgress,
+          dueDate: t.dueDate,
+          createdAt: t.createdAt,
+          updatedAt: t.updatedAt,
+          comments: [],
+          attachments: [],
+          dependencies: [],
+          subtasks: []
+        };
+      }),
     attachments: [],
     settings: {
       allowComments: true,
@@ -150,26 +166,42 @@ export default function ProjectDashboard({ onProjectSelect, onCreateProject }: P
     }
   }));
 
-  const assignedTasks = apiTasks.map(t => ({
-    id: t.id.toString(),
-    title: t.title,
-    description: t.description || '',
-    status: t.status.toLowerCase().replace('_', '-') as any,
-    priority: t.priority.toLowerCase() as any,
-    assigneeIds: t.assigneeId ? [t.assigneeId.toString()] : [],
-    reporterId: '1',
-    projectId: t.projectId.toString(),
-    labels: [],
-    loggedHours: 0,
-    progress: t.status === 'DONE' ? 100 : t.status === 'IN_PROGRESS' ? 50 : 0,
-    dueDate: t.dueDate,
-    createdAt: t.createdAt,
-    updatedAt: t.updatedAt,
-    comments: [],
-    attachments: [],
-    dependencies: [],
-    subtasks: []
-  }));
+  const assignedTasks = apiTasks.map(t => {
+    // 백엔드 상태 매핑
+    let frontendStatus = t.status.toLowerCase().replace('_', '-');
+    if (frontendStatus === 'review') frontendStatus = 'in-review';
+    
+    // 진행률 계산 (API에 있으면 사용, 없으면 상태 기반)
+    let taskProgress = (t as any).progress || 0;
+    if (taskProgress === 0 && frontendStatus !== 'todo') {
+      switch (frontendStatus) {
+        case 'in-progress': taskProgress = 50; break;
+        case 'in-review': taskProgress = 75; break;
+        case 'done': taskProgress = 100; break;
+      }
+    }
+    
+    return {
+      id: t.id.toString(),
+      title: t.title,
+      description: t.description || '',
+      status: frontendStatus as any,
+      priority: t.priority.toLowerCase() as any,
+      assigneeIds: t.assigneeId ? [t.assigneeId.toString()] : [],
+      reporterId: '1',
+      projectId: t.projectId.toString(),
+      labels: [],
+      loggedHours: 0,
+      progress: taskProgress,
+      dueDate: t.dueDate,
+      createdAt: t.createdAt,
+      updatedAt: t.updatedAt,
+      comments: [],
+      attachments: [],
+      dependencies: [],
+      subtasks: []
+    };
+  });
 
   const upcomingDeadlines = assignedTasks.filter(t => t.dueDate && new Date(t.dueDate) > new Date());
 
@@ -554,7 +586,14 @@ export default function ProjectDashboard({ onProjectSelect, onCreateProject }: P
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {filteredProjects.map(project => {
                   const lead = users.find(u => u.id === project.leadId);
-                  const progress = getProjectProgress(project.id);
+                  
+                  // 프로젝트 진행률: 모든 태스크의 평균 진행률
+                  const progress = project.tasks.length > 0
+                    ? Math.round(
+                        project.tasks.reduce((sum, task) => sum + (task.progress || 0), 0) / project.tasks.length
+                      )
+                    : 0;
+                  
                   const StatusIcon = getStatusIcon(project.status);
                   const totalTasks = project.tasks.length;
                   const completedTasks = project.tasks.filter(t => t.status === 'done').length;
@@ -584,13 +623,18 @@ export default function ProjectDashboard({ onProjectSelect, onCreateProject }: P
                         <div className="space-y-2">
                           <div className="flex justify-between text-sm">
                             <span>진행률</span>
-                            <span>{progress}%</span>
+                            <span className="font-medium">{progress}%</span>
                           </div>
                           <Progress value={progress} className="h-2" />
                           <div className="flex justify-between text-xs text-gray-500">
                             <span>{completedTasks}/{totalTasks} 태스크 완료</span>
-                            <span>{project.key}</span>
+                            <span className="text-blue-600">{project.key}</span>
                           </div>
+                          {totalTasks > 0 && (
+                            <div className="text-xs text-gray-400 italic">
+                              평균 태스크 진행률 기반
+                            </div>
+                          )}
                         </div>
 
                         {/* Team and dates */}

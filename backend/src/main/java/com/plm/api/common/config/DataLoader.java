@@ -127,48 +127,57 @@ public class DataLoader implements CommandLineRunner {
         // 프로젝트 1의 태스크들
         Task task1 = new Task("요구사항 분석", "프로젝트의 상세 요구사항을 분석하고 문서화", 
                              TaskStatus.DONE, Priority.HIGH, "developer1", project1);
+        task1.setStartDate(LocalDateTime.now().minusDays(30));
         task1.setDueDate(LocalDateTime.now().minusDays(20));
         taskRepository.save(task1);
         
         Task task2 = new Task("UI/UX 설계", "사용자 인터페이스 및 사용자 경험 설계", 
                              TaskStatus.IN_PROGRESS, Priority.HIGH, "designer1", project1);
+        task2.setStartDate(LocalDateTime.now().minusDays(10));
         task2.setDueDate(LocalDateTime.now().plusDays(5));
         taskRepository.save(task2);
         
         Task task3 = new Task("백엔드 API 개발", "RESTful API 개발 및 테스트", 
                              TaskStatus.TODO, Priority.MEDIUM, "developer2", project1);
+        task3.setStartDate(LocalDateTime.now().plusDays(5));
         task3.setDueDate(LocalDateTime.now().plusDays(15));
         taskRepository.save(task3);
         
         Task task4 = new Task("프론트엔드 개발", "React 기반 프론트엔드 개발", 
                              TaskStatus.TODO, Priority.MEDIUM, "developer3", project1);
+        task4.setStartDate(LocalDateTime.now().plusDays(10));
         task4.setDueDate(LocalDateTime.now().plusDays(25));
         taskRepository.save(task4);
         
         // 프로젝트 2의 태스크들
         Task task5 = new Task("현재 앱 분석", "기존 앱의 문제점 분석 및 개선사항 도출", 
                              TaskStatus.TODO, Priority.HIGH, "analyst1", project2);
+        task5.setStartDate(LocalDateTime.now().plusDays(7));
         task5.setDueDate(LocalDateTime.now().plusDays(10));
         taskRepository.save(task5);
         
         Task task6 = new Task("디자인 시스템 구축", "일관된 디자인 시스템 구축", 
                              TaskStatus.TODO, Priority.MEDIUM, "designer2", project2);
+        task6.setStartDate(LocalDateTime.now().plusDays(11));
         task6.setDueDate(LocalDateTime.now().plusDays(20));
         taskRepository.save(task6);
         
         // 프로젝트 3의 태스크들 (완료된 프로젝트)
         Task task7 = new Task("성능 분석", "데이터베이스 성능 분석 및 병목지점 파악", 
                              TaskStatus.DONE, Priority.URGENT, "dba1", project3);
+        task7.setStartDate(LocalDateTime.now().minusDays(60));
         task7.setDueDate(LocalDateTime.now().minusDays(45));
         taskRepository.save(task7);
         
         Task task8 = new Task("인덱스 최적화", "쿼리 성능 개선을 위한 인덱스 최적화", 
                              TaskStatus.DONE, Priority.HIGH, "dba1", project3);
+        task8.setStartDate(LocalDateTime.now().minusDays(45));
         task8.setDueDate(LocalDateTime.now().minusDays(30));
         taskRepository.save(task8);
         
         Task task9 = new Task("쿼리 튜닝", "느린 쿼리 최적화 및 성능 개선", 
                              TaskStatus.DONE, Priority.HIGH, "dba2", project3);
+        task9.setStartDate(LocalDateTime.now().minusDays(35));
         task9.setDueDate(LocalDateTime.now().minusDays(20));
         taskRepository.save(task9);
         

@@ -109,11 +109,21 @@ export default function ProjectBoard({ projectId, onBack }: ProjectBoardProps) {
         members: projectMembers
       });
       
-      setTasks(tasksRes.data.map((t: any) => {
+      const mappedTasks = tasksRes.data.map((t: any) => {
         // 백엔드 상태를 프론트엔드 상태로 매핑
         let frontendStatus = t.status.toLowerCase().replace('_', '-');
         if (frontendStatus === 'review') {
           frontendStatus = 'in-review';  // REVIEW -> in-review
+        }
+        
+        // 진행률 자동 계산 (DB에 0이고 상태가 완료/진행중이면)
+        let taskProgress = t.progress || 0;
+        if (taskProgress === 0 && frontendStatus !== 'todo') {
+          switch (frontendStatus) {
+            case 'in-progress': taskProgress = 50; break;
+            case 'in-review': taskProgress = 75; break;
+            case 'done': taskProgress = 100; break;
+          }
         }
         
         return {
@@ -122,15 +132,19 @@ export default function ProjectBoard({ projectId, onBack }: ProjectBoardProps) {
           description: t.description || '',
           status: frontendStatus,
           priority: t.priority.toLowerCase(),
-          assigneeIds: t.assigneeId ? [t.assigneeId.toString()] : [],
+          assigneeIds: t.assigneeId 
+            ? t.assigneeId.split(',').map((id: string) => id.trim()).filter((id: string) => id !== '')
+            : [],
           dueDate: t.dueDate,
           createdAt: t.createdAt,
           comments: [],      // 빈 배열로 초기화
           attachments: [],   // 빈 배열로 초기화
           labels: [],        // 빈 배열로 초기화
-          progress: 0        // 0으로 초기화
+          progress: taskProgress  // 계산된 진행률 사용
         };
-      }));
+      });
+      
+      setTasks(mappedTasks);
       
       console.log('프로젝트 로드 완료');
     } catch (error: any) {
@@ -142,10 +156,12 @@ export default function ProjectBoard({ projectId, onBack }: ProjectBoardProps) {
       setLoading(false);
     }
   };
-
+  // 프로젝트 진행률: 모든 태스크의 평균 진행률
   const progress = project && tasks.length > 0
     ? {
-        completion: Math.round((tasks.filter(t => t.status === 'done').length / tasks.length) * 100),
+        completion: Math.round(
+          tasks.reduce((sum, task) => sum + (task.progress || 0), 0) / tasks.length
+        ),
         totalTasks: tasks.length,
         completedTasks: tasks.filter(t => t.status === 'done').length,
         inProgressTasks: tasks.filter(t => t.status === 'in-progress').length,
@@ -335,16 +351,14 @@ export default function ProjectBoard({ projectId, onBack }: ProjectBoardProps) {
               </div>
             )}
 
-            {/* Progress */}
-            {task.progress !== undefined && task.progress >= 0 && (
-              <div className="space-y-1">
-                <div className="flex justify-between text-xs">
-                  <span className="text-gray-600">진행률</span>
-                  <span className="font-medium">{task.progress}%</span>
-                </div>
-                <Progress value={task.progress} className="h-2" />
+            {/* Progress - 항상 표시 */}
+            <div className="space-y-1">
+              <div className="flex justify-between text-xs">
+                <span className="text-gray-600">진행률</span>
+                <span className="font-medium">{task.progress || 0}%</span>
               </div>
-            )}
+              <Progress value={task.progress || 0} className="h-2" />
+            </div>
 
             {/* Bottom info */}
             <div className="flex items-center justify-between text-xs pt-2 border-t">
@@ -462,8 +476,13 @@ export default function ProjectBoard({ projectId, onBack }: ProjectBoardProps) {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-sm">진행률: {progress.completion}%</span>
-              <Progress value={progress.completion} className="w-24 h-2" />
+              <div className="text-sm">
+                <span className="font-medium">프로젝트 진행률: {progress.completion}%</span>
+                <span className="text-gray-500 ml-2">
+                  (평균 태스크 진행률 기반)
+                </span>
+              </div>
+              <Progress value={progress.completion} className="w-32 h-2" />
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -640,8 +659,8 @@ export default function ProjectBoard({ projectId, onBack }: ProjectBoardProps) {
                       </div>
                       <div className="text-right">
                         <div className="text-sm text-gray-500 mb-1">진행률</div>
-                        <div className="text-lg font-bold">{task.progress}%</div>
-                        <Progress value={task.progress} className="w-20 h-2" />
+                        <div className="text-lg font-bold">{task.progress || 0}%</div>
+                        <Progress value={task.progress || 0} className="w-20 h-2" />
                       </div>
                     </div>
                   </CardContent>

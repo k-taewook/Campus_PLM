@@ -29,8 +29,14 @@ public class Task {
     @Column(name = "assignee_id")
     private String assigneeId; // 로그인 기능 완성 후 User 엔티티로 변경 예정
     
+    @Column(name = "start_date")
+    private LocalDateTime startDate;
+    
     @Column(name = "due_date")
     private LocalDateTime dueDate;
+    
+    @Column(name = "progress")
+    private Integer progress = 0; // 진행률 (0-100), 기본값 0
     
     @Column(name = "created_at")
     private LocalDateTime createdAt;
@@ -108,6 +114,14 @@ public class Task {
         this.assigneeId = assigneeId;
     }
     
+    public LocalDateTime getStartDate() {
+        return startDate;
+    }
+    
+    public void setStartDate(LocalDateTime startDate) {
+        this.startDate = startDate;
+    }
+    
     public LocalDateTime getDueDate() {
         return dueDate;
     }
@@ -138,6 +152,14 @@ public class Task {
     
     public void setProject(Project project) {
         this.project = project;
+    }
+    
+    public Integer getProgress() {
+        return progress;
+    }
+    
+    public void setProgress(Integer progress) {
+        this.progress = progress;
     }
     
     // 업데이트 시 자동으로 updatedAt 설정
