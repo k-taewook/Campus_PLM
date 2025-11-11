@@ -5,6 +5,9 @@
 기업 및 팀의 프로젝트 생명주기 전반을 관리하는 현대적인 풀스택 웹 애플리케이션입니다.  
 **Feature-based Architecture**로 설계되어 팀 협업과 확장성에 최적화되어 있습니다.
 
+**📅 최종 업데이트**: 2025년 11월 11일  
+**🔖 현재 버전**: v1.3.0
+
 ---
 
 ## 📖 목차
@@ -250,6 +253,10 @@ files (id, original_name, stored_name, file_path, file_size, mime_type, file_typ
 - [x] 프로젝트별 태스크 조회
 - [x] 태스크 할당 및 마감일 관리
 - [x] 태스크 통계 및 필터링
+- [x] 태스크 삭제 시 실시간 칸반보드 업데이트
+- [x] 체크리스트 기능
+- [x] 댓글 시스템
+- [x] 첨부파일 관리
 
 #### 3. 사용자 인증 시스템 (User Authentication Module)
 - [x] 이메일/비밀번호 기반 회원가입 API
@@ -931,7 +938,21 @@ Table doesn't exist
 
 ### 🔄 업데이트 내역
 
-### v1.2.0 (2025-10-31) ⭐ NEW
+### v1.3.0 (2025-11-11) ⭐ LATEST
+- ✅ **대시보드 통계 로직 개선**
+  - "완료된 태스크" 카드 → "진행 중인 태스크" 카드로 변경
+  - 할당된 태스크에서 완료된 태스크 제외 (status !== 'done')
+  - 대시보드 툴팁 항목 클릭 시 해당 프로젝트/태스크로 이동
+- ✅ **태스크 관리 기능 개선**
+  - 태스크 삭제 시 칸반보드 즉시 업데이트 (onTaskUpdated 콜백 호출)
+  - 프로젝트 레이블 기능 제거 (CreateTaskDialog, EditTaskDialog)
+  - 시간 추적 기능 제거 (TaskDetail에서 timeLog 관련 UI/로직 제거)
+- ✅ **버그 수정**
+  - EditTaskDialog 무한 루프 수정 (labels 속성, useEffect 의존성 개선)
+  - CreateTaskDialog setNewLabel 참조 오류 수정
+  - TaskDetail JSX 구조 오류 수정 (닫는 태그 누락)
+
+### v1.2.0 (2025-10-31)
 - ✅ **파일 관리 시스템 구현 완료**
   - Multipart 파일 업로드 API (최대 10MB)
   - 스트리밍 파일 다운로드
@@ -963,11 +984,11 @@ Table doesn't exist
 - ✅ 실시간 대시보드
 - ✅ 샘플 데이터 자동 로딩
 
-### 다음 버전 계획 (v1.3.0)
+### 다음 버전 계획 (v1.4.0)
 - 🔄 팀 관리 시스템 (TeamService, TeamController)
 - 🔄 댓글 시스템 (CommentService, 대댓글 지원)
-- 🔄 대시보드 통계 (차트 시각화)
-- 🔄 JWT 토큰 기반 인증 강화 (선택)
+- 🔄 대시보드 통계 차트 시각화
+- 🔄 JWT 토큰 기반 인증 강화
 - 🔄 실시간 알림 (WebSocket/SSE)
 - 🔄 고급 검색 필터
 
