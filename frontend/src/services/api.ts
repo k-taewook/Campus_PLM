@@ -1,3 +1,4 @@
+/// <reference types="vite/client" />
 import axios from 'axios';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
@@ -303,4 +304,61 @@ export interface CreateTeamRequest {
   name: string;
   description?: string;
   logoUrl?: string;
+}
+
+// ===== 파일 API 유틸 =====
+export interface FileDto {
+  id: number;
+  originalName: string;
+  storedName: string;
+  filePath: string;
+  fileSize: number;
+  mimeType: string;
+  fileType: 'DOCUMENT' | 'IMAGE' | 'VIDEO' | 'AUDIO' | 'ARCHIVE' | 'CODE' | 'OTHER';
+  projectId?: number;
+  projectName?: string;
+  taskId?: number;
+  taskTitle?: string;
+  uploaderId: number;
+  uploaderUsername: string;
+  uploaderFullName: string;
+  downloadCount: number;
+  createdAt: string;
+}
+
+export async function getTaskFiles(taskId: number): Promise<FileDto[]> {
+  const response = await api.get(`/files/task/${taskId}`);
+  return response.data;
+}
+
+export async function uploadFile(params: {
+  file: File;
+  uploaderId: number;
+  projectId?: number;
+  taskId?: number;
+  onUploadProgress?: (e: any) => void;
+}): Promise<FileDto> {
+  const form = new FormData();
+  form.append('file', params.file);
+  form.append('uploaderId', String(params.uploaderId));
+  if (params.projectId != null) form.append('projectId', String(params.projectId));
+  if (params.taskId != null) form.append('taskId', String(params.taskId));
+
+  const response = await api.post('/files/upload', form, {
+    headers: {
+      // Axios가 boundary를 자동 설정하도록 content-type만 지정
+      'Content-Type': 'multipart/form-data',
+    },
+    onUploadProgress: params.onUploadProgress,
+  });
+  return response.data;
+}
+
+export async function deleteFileById(id: number): Promise<void> {
+  await api.delete(`/files/${id}`);
+}
+
+export async function updateFileOriginalName(id: number, originalName: string): Promise<FileDto> {
+  const response = await api.put(`/files/${id}`, { originalName });
+  return response.data;
 }

@@ -16,6 +16,7 @@ import java.net.MalformedURLException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
+import java.util.Map;
 
 /**
  * File REST Controller
@@ -135,5 +136,16 @@ public class FileController {
         } catch (IOException e) {
             throw new RuntimeException("Failed to delete file: " + e.getMessage());
         }
+    }
+
+    // 파일 정보 수정 (현재: 파일명만 수정)
+    @PutMapping("/{id}")
+    public ResponseEntity<FileDto> updateFile(@PathVariable Long id, @RequestBody Map<String, Object> body) {
+        String originalName = body.get("originalName") != null ? body.get("originalName").toString() : null;
+        if (originalName == null || originalName.trim().isEmpty()) {
+            throw new RuntimeException("originalName is required");
+        }
+        FileDto updated = fileService.updateOriginalName(id, originalName.trim());
+        return ResponseEntity.ok(updated);
     }
 }

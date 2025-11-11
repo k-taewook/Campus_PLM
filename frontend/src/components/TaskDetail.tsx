@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { 
   ArrowLeft,
   Edit,
@@ -33,7 +33,7 @@ import { Checkbox } from './ui/checkbox';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from './ui/dropdown-menu';
 import { useProjects, type Task, type Attachment } from '../contexts/ProjectContext';
-import api from '../services/api';
+import api, { getTaskFiles, uploadFile as uploadFileApi, deleteFileById, updateFileOriginalName, type FileDto } from '../services/api';
 import EditTaskDialog from './EditTaskDialog';
 
 interface TaskDetailProps {
@@ -72,6 +72,9 @@ export default function TaskDetail({ taskId, onBack, onTaskUpdated }: TaskDetail
   const [showChecklistForm, setShowChecklistForm] = useState(false);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgressMap, setUploadProgressMap] = useState<Record<string, number>>({});
+  const [uploadDoneCount, setUploadDoneCount] = useState<number>(0);
 
   useEffect(() => {
     loadTaskData();
@@ -182,6 +185,23 @@ export default function TaskDetail({ taskId, onBack, onTaskUpdated }: TaskDetail
         } catch (error) {
           console.error('프로젝트 로드 실패:', error);
         }
+      }
+
+      // 태스크 첨부파일 목록 로드
+      try {
+        const files: FileDto[] = await getTaskFiles(Number(taskId));
+        const mapped: Attachment[] = files.map((f) => ({
+          id: String(f.id),
+          type: f.mimeType?.startsWith('image/') ? 'image' : 'file',
+          name: f.originalName,
+          url: `${api.defaults.baseURL}/files/${f.id}/download`,
+          size: f.fileSize,
+          uploadedBy: String(f.uploaderId),
+          uploadedAt: f.createdAt,
+        }));
+        setTask((prev: any) => prev ? { ...prev, attachments: mapped } : prev);
+      } catch (err) {
+        console.error('첨부파일 로드 실패:', err);
       }
     } catch (error) {
       console.error('태스크 로드 실패:', error);
@@ -301,19 +321,107 @@ export default function TaskDetail({ taskId, onBack, onTaskUpdated }: TaskDetail
     }
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
-    if (files && currentUser) {
-      Array.from(files).forEach(file => {
-        const attachment: Omit<Attachment, 'id' | 'uploadedAt'> = {
-          type: file.type.startsWith('image/') ? 'image' : 'file',
-          name: file.name,
-          url: URL.createObjectURL(file), // Mock URL
-          size: file.size,
-          uploadedBy: currentUser.id
-        };
-        addAttachment('task', taskId, attachment);
-      });
+    if (!files || !currentUser) return;
+    try {
+      setIsUploading(true);
+      const projectIdNum = project ? Number(project.id) : undefined;
+      const uploaderIdNum = Number(currentUser.id);
+      const taskIdNum = Number(taskId);
+
+      const filesArr: File[] = Array.from(files as FileList);
+      // 초기 프로그레스 0으로 설정
+      const initialMap: Record<string, number> = {};
+      const keys = filesArr.map((file, idx) => `${file.name}-${idx}-${Date.now()}`);
+      keys.forEach((k) => (initialMap[k] = 0));
+      setUploadProgressMap(initialMap);
+
+      await Promise.all(
+        filesArr.map((file: File, idx) => {
+          const key = keys[idx];
+          return uploadFileApi({
+            file,
+            uploaderId: uploaderIdNum,
+            projectId: projectIdNum,
+            taskId: taskIdNum,
+            onUploadProgress: (evt: any) => {
+              if (!evt) return;
+              const total = evt.total || file.size || 1;
+              const percent = Math.min(100, Math.round((evt.loaded / total) * 100));
+              setUploadProgressMap((prev) => ({ ...prev, [key]: percent }));
+            },
+          });
+        })
+      );
+
+      // 업로드 완료 후 목록 재로딩
+      setUploadDoneCount(filesArr.length);
+      setTimeout(() => setUploadDoneCount(0), 3000);
+      const updatedFiles: FileDto[] = await getTaskFiles(taskIdNum);
+      const mapped: Attachment[] = updatedFiles.map((f) => ({
+        id: String(f.id),
+        type: f.mimeType?.startsWith('image/') ? 'image' : 'file',
+        name: f.originalName,
+        url: `${api.defaults.baseURL}/files/${f.id}/download`,
+        size: f.fileSize,
+        uploadedBy: String(f.uploaderId),
+        uploadedAt: f.createdAt,
+      }));
+      setTask((prev: any) => prev ? { ...prev, attachments: mapped } : prev);
+    } catch (error) {
+      console.error('파일 업로드 실패:', error);
+      alert('파일 업로드에 실패했습니다.');
+    } finally {
+      setIsUploading(false);
+      setUploadProgressMap({});
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  // 첨부파일 목록 새로고침
+  const reloadAttachments = async () => {
+    try {
+      const list = await getTaskFiles(Number(taskId));
+      const mapped: Attachment[] = list.map((f) => ({
+        id: String(f.id),
+        type: f.mimeType?.startsWith('image/') ? 'image' : 'file',
+        name: f.originalName,
+        url: `${api.defaults.baseURL}/files/${f.id}/download`,
+        size: f.fileSize,
+        uploadedBy: String(f.uploaderId),
+        uploadedAt: f.createdAt,
+      }));
+      setTask((prev: any) => prev ? { ...prev, attachments: mapped } : prev);
+    } catch (e) {
+      console.error('첨부파일 새로고침 실패:', e);
+    }
+  };
+
+  // 첨부파일 삭제
+  const handleDeleteAttachment = async (attachmentId: string) => {
+    if (!confirm('이 첨부파일을 삭제하시겠습니까?')) return;
+    try {
+      await deleteFileById(Number(attachmentId));
+      await reloadAttachments();
+      alert('첨부파일이 삭제되었습니다.');
+    } catch (e) {
+      console.error('첨부파일 삭제 실패:', e);
+      alert('첨부파일 삭제에 실패했습니다.');
+    }
+  };
+
+  // 첨부파일 이름 수정
+  const handleRenameAttachment = async (attachmentId: string, currentName: string) => {
+    const newName = window.prompt('새 파일명을 입력하세요', currentName);
+    if (!newName || newName.trim() === '' || newName === currentName) return;
+    try {
+      await updateFileOriginalName(Number(attachmentId), newName.trim());
+      await reloadAttachments();
+      alert('파일명이 변경되었습니다.');
+    } catch (e) {
+      console.error('파일명 변경 실패:', e);
+      alert('파일명 변경에 실패했습니다.');
     }
   };
 
@@ -885,14 +993,35 @@ export default function TaskDetail({ taskId, onBack, onTaskUpdated }: TaskDetail
                       <Upload className="w-4 h-4 mr-2" />
                       파일 업로드
                     </Button>
-                    <Button size="sm" variant="outline" onClick={() => setShowLinkForm(true)}>
-                      <Link className="w-4 h-4 mr-2" />
-                      링크 추가
-                    </Button>
+                  {/* <Button size="sm" variant="outline" onClick={() => setShowLinkForm(true)}>
+                    <Link className="w-4 h-4 mr-2" />
+                    링크 추가
+                  </Button> */}
                   </div>
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
+              {/* 업로드 완료 안내 */}
+              {uploadDoneCount > 0 && (
+                <div className="p-3 rounded-md bg-green-50 border border-green-200 text-green-700 text-sm">
+                  {uploadDoneCount}개 파일 업로드가 완료되었습니다.
+                </div>
+              )}
+                {/* 업로드 진행률 표시 */}
+                {isUploading && Object.keys(uploadProgressMap).length > 0 && (
+                  <div className="space-y-2 p-3 border rounded-md bg-gray-50">
+                    <div className="text-sm font-medium">업로드 중...</div>
+                    {Object.entries(uploadProgressMap).map(([key, percent]) => (
+                      <div key={key}>
+                        <div className="flex justify-between text-xs mb-1">
+                          <span className="truncate max-w-[220px]">{key.split('-').slice(0, -2).join('-') || '파일'}</span>
+                          <span>{percent}%</span>
+                        </div>
+                        <Progress value={percent} className="h-2" />
+                      </div>
+                    ))}
+                  </div>
+                )}
                 {task.attachments.map((attachment: any) => {
                   const uploader = users.find(u => u.id === attachment.uploadedBy);
                   return (
@@ -915,7 +1044,14 @@ export default function TaskDetail({ taskId, onBack, onTaskUpdated }: TaskDetail
                               {attachment.name}
                             </a>
                           ) : (
-                            attachment.name
+                            <a
+                              href={attachment.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-gray-900 hover:underline"
+                            >
+                              {attachment.name}
+                            </a>
                           )}
                         </div>
                         <div className="text-xs text-gray-500">
@@ -934,33 +1070,8 @@ export default function TaskDetail({ taskId, onBack, onTaskUpdated }: TaskDetail
                   </div>
                 )}
 
-                {/* Link Form */}
-                {showLinkForm && (
-                  <div className="border rounded-lg p-4 bg-blue-50">
-                    <div className="space-y-3">
-                      <div>
-                        <Label>링크 제목</Label>
-                        <Input
-                          value={newLink.name}
-                          onChange={(e) => setNewLink({ ...newLink, name: e.target.value })}
-                          placeholder="예: 참고 자료"
-                        />
-                      </div>
-                      <div>
-                        <Label>URL</Label>
-                        <Input
-                          value={newLink.url}
-                          onChange={(e) => setNewLink({ ...newLink, url: e.target.value })}
-                          placeholder="https://example.com"
-                        />
-                      </div>
-                      <div className="flex gap-2">
-                        <Button size="sm" onClick={handleAddLink}>추가</Button>
-                        <Button size="sm" variant="outline" onClick={() => setShowLinkForm(false)}>취소</Button>
-                      </div>
-                    </div>
-                  </div>
-                )}
+                {/* Link Form 보류 */}
+                {/* {showLinkForm && (...)} */}
               </CardContent>
             </Card>
 

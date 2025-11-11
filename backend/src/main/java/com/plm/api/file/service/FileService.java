@@ -1,5 +1,20 @@
 package com.plm.api.file.service;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.List;
+import java.util.UUID;
+import java.util.stream.Collectors;
+
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
+
 import com.plm.api.file.dto.FileDto;
 import com.plm.api.file.entity.FileAttachment;
 import com.plm.api.file.entity.FileType;
@@ -10,21 +25,6 @@ import com.plm.api.task.entity.Task;
 import com.plm.api.task.repository.TaskRepository;
 import com.plm.api.user.entity.User;
 import com.plm.api.user.repository.UserRepository;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.multipart.MultipartFile;
-
-import java.io.File;
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
-import java.util.List;
-import java.util.UUID;
-import java.util.stream.Collectors;
 
 /**
  * File Service
@@ -218,5 +218,14 @@ public class FileService {
         
         // DB 레코드 삭제
         fileRepository.delete(file);
+    }
+
+    // 파일명 수정
+    public FileDto updateOriginalName(Long id, String originalName) {
+        FileAttachment file = fileRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("File not found with id: " + id));
+        file.setOriginalName(originalName);
+        FileAttachment saved = fileRepository.save(file);
+        return convertToDto(saved);
     }
 }
