@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -27,8 +27,8 @@ export default function CreateProjectDialog({ open, onOpenChange, onProjectCreat
     name: '',
     description: '',
     type: 'software' as const,
-    leadId: currentUser?.id || '',
-    teamMembers: [currentUser?.id || ''],
+    leadId: '',
+    teamMembers: [] as string[],
     startDate: '',
     endDate: ''
   });
@@ -36,6 +36,20 @@ export default function CreateProjectDialog({ open, onOpenChange, onProjectCreat
   const [nameError, setNameError] = useState('');
   const [memberSearchQuery, setMemberSearchQuery] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // 사용자 목록이 로드되면 첫 번째 admin/manager를 기본 리드로 설정
+  useEffect(() => {
+    if (users.length > 0 && !formData.leadId) {
+      const defaultLead = users.find(u => u.role === 'admin' || u.role === 'manager');
+      if (defaultLead) {
+        setFormData(prev => ({
+          ...prev,
+          leadId: defaultLead.id,
+          teamMembers: [defaultLead.id]
+        }));
+      }
+    }
+  }, [users]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -65,35 +79,54 @@ export default function CreateProjectDialog({ open, onOpenChange, onProjectCreat
         name: formData.name.trim(),
         description: formData.description.trim() || null,
         status: 'PLANNING',
-        managerId: authUser.id,
+        managerId: formData.leadId, // 선택한 프로젝트 리드 사용
         startDate: formatToLocalDateTime(formData.startDate) || defaultStartDate,
         endDate: formatToLocalDateTime(formData.endDate) || defaultEndDate
       };
 
       console.log('프로젝트 생성 요청:', projectData);
+      console.log('선택된 프로젝트 리드 ID:', formData.leadId);
       const response = await api.post('/projects', projectData);
       console.log('프로젝트 생성 성공:', response.data);
 
       // 프로젝트 멤버 추가
       const createdProjectId = response.data.id;
-      if (formData.teamMembers.length > 0) {
-        const memberIds = formData.teamMembers.map(id => parseInt(id));
-        try {
-          await plmApi.addProjectMembersBulk(createdProjectId, memberIds);
-          console.log('프로젝트 멤버 추가 성공');
-        } catch (memberError) {
-          console.error('프로젝트 멤버 추가 실패:', memberError);
-          // 멤버 추가 실패해도 프로젝트는 생성됨
+      console.log('선택된 팀 멤버:', formData.teamMembers);
+      console.log('프로젝트 ID:', createdProjectId);
+      
+      if (formData.teamMembers && formData.teamMembers.length > 0) {
+        // 빈 문자열 제거 및 유효한 숫자로 변환
+        const memberIds = formData.teamMembers
+          .filter(id => id && id.trim() !== '')
+          .map(id => parseInt(id))
+          .filter(id => !isNaN(id));
+        
+        console.log('변환된 멤버 ID 배열:', memberIds);
+        
+        if (memberIds.length > 0) {
+          try {
+            const memberResponse = await plmApi.addProjectMembersBulk(createdProjectId, memberIds);
+            console.log('프로젝트 멤버 추가 성공:', memberResponse);
+          } catch (memberError: any) {
+            console.error('프로젝트 멤버 추가 실패:', memberError);
+            console.error('에러 상세:', memberError.response?.data);
+            // 멤버 추가 실패해도 프로젝트는 생성됨
+          }
+        } else {
+          console.log('유효한 멤버 ID가 없습니다.');
         }
+      } else {
+        console.log('추가할 팀 멤버가 없습니다.');
       }
 
-      // Reset form
+      // Reset form - 기본 리드로 리셋
+      const defaultLead = users.find(u => u.role === 'admin' || u.role === 'manager');
       setFormData({
         name: '',
         description: '',
         type: 'software',
-        leadId: authUser.id.toString(),
-        teamMembers: [authUser.id.toString()],
+        leadId: defaultLead?.id || '',
+        teamMembers: defaultLead ? [defaultLead.id] : [],
         startDate: '',
         endDate: ''
       });
@@ -115,23 +148,48 @@ export default function CreateProjectDialog({ open, onOpenChange, onProjectCreat
   };
 
   const handleTeamMemberToggle = (userId: string) => {
+    if (!authUser) return;
+    
     setFormData(prev => {
       const currentMembers = prev.teamMembers;
       const isSelected = currentMembers.includes(userId);
       
-      if (isSelected && userId !== currentUser?.id) {
-        // Can't remove yourself
+      // 프로젝트 리드는 선택 해제 불가
+      if (isSelected && userId === prev.leadId) {
+        return prev;
+      }
+      
+      if (isSelected) {
         return {
           ...prev,
           teamMembers: currentMembers.filter(id => id !== userId)
         };
-      } else if (!isSelected) {
+      } else {
         return {
           ...prev,
           teamMembers: [...currentMembers, userId]
         };
       }
-      return prev;
+    });
+  };
+
+  const handleLeadChange = (newLeadId: string) => {
+    setFormData(prev => {
+      const oldLeadId = prev.leadId;
+      
+      // 이전 리드를 팀 멤버에서 제거하고, 새 리드를 추가
+      let updatedMembers = prev.teamMembers.filter(id => id !== oldLeadId);
+      
+      // 새 리드가 팀 멤버에 없으면 추가
+      if (!updatedMembers.includes(newLeadId)) {
+        updatedMembers = [...updatedMembers, newLeadId];
+      }
+      
+      return {
+        ...prev,
+        leadId: newLeadId,
+        teamMembers: updatedMembers
+      };
     });
   };
 
@@ -160,12 +218,8 @@ export default function CreateProjectDialog({ open, onOpenChange, onProjectCreat
 
   const selectedMembers = users.filter(user => formData.teamMembers.includes(user.id));
   
-  // 검색어에 따라 사용자 필터링 (프로젝트 리드로 선택된 사람 제외)
+  // 검색어에 따라 사용자 필터링
   const filteredUsers = users.filter(user => {
-    // 프로젝트 리드로 선택된 사람은 제외
-    if (formData.leadId && user.id === formData.leadId) {
-      return false;
-    }
     // 검색어 필터링
     return user.name.toLowerCase().includes(memberSearchQuery.toLowerCase()) ||
       user.email.toLowerCase().includes(memberSearchQuery.toLowerCase());
@@ -255,7 +309,7 @@ export default function CreateProjectDialog({ open, onOpenChange, onProjectCreat
 
             <div>
               <Label htmlFor="lead">프로젝트 리드</Label>
-              <Select value={formData.leadId} onValueChange={(value: string) => setFormData({ ...formData, leadId: value })}>
+              <Select value={formData.leadId} onValueChange={handleLeadChange}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -303,17 +357,24 @@ export default function CreateProjectDialog({ open, onOpenChange, onProjectCreat
                 <div>
                   <p className="text-sm text-gray-600 mb-2">선택된 멤버 ({selectedMembers.length}명)</p>
                   <div className="flex flex-wrap gap-2">
-                    {selectedMembers.map(member => (
-                      <Badge key={member.id} variant="secondary" className="flex items-center gap-2">
-                        <Avatar className="w-4 h-4">
-                          <AvatarFallback className="bg-blue-100 text-blue-600 text-xs">
-                            {member.name.charAt(0)}
-                          </AvatarFallback>
-                        </Avatar>
-                        {member.name}
-                        {member.id === currentUser?.id && <span className="text-xs">(나)</span>}
-                      </Badge>
-                    ))}
+                    {selectedMembers.map(member => {
+                      const isLead = member.id === formData.leadId;
+                      return (
+                        <Badge 
+                          key={member.id} 
+                          variant={isLead ? "default" : "secondary"} 
+                          className="flex items-center gap-2"
+                        >
+                          <Avatar className="w-4 h-4">
+                            <AvatarFallback className={isLead ? "bg-white text-blue-600 text-xs" : "bg-blue-100 text-blue-600 text-xs"}>
+                              {member.name.charAt(0)}
+                            </AvatarFallback>
+                          </Avatar>
+                          {member.name}
+                          {isLead && <span className="text-xs font-semibold">리드</span>}
+                        </Badge>
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -346,7 +407,7 @@ export default function CreateProjectDialog({ open, onOpenChange, onProjectCreat
                   ) : (
                     filteredUsers.map(user => {
                     const isSelected = formData.teamMembers.includes(user.id);
-                    const isCurrentUser = user.id === currentUser?.id;
+                    const isLead = user.id === formData.leadId;
                     
                     return (
                       <div key={user.id} className="flex items-center space-x-3 hover:bg-gray-50 p-1 rounded">
@@ -354,7 +415,7 @@ export default function CreateProjectDialog({ open, onOpenChange, onProjectCreat
                           id={user.id}
                           checked={isSelected}
                           onCheckedChange={() => handleTeamMemberToggle(user.id)}
-                          disabled={isCurrentUser} // Can't unselect yourself
+                          disabled={isLead} // Can't unselect project lead
                         />
                         <label 
                           htmlFor={user.id}
@@ -368,7 +429,7 @@ export default function CreateProjectDialog({ open, onOpenChange, onProjectCreat
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium truncate">
                               {user.name}
-                              {isCurrentUser && <span className="text-gray-500 ml-1">(나)</span>}
+                              {isLead && <span className="text-blue-600 ml-1 font-semibold">(리드)</span>}
                             </p>
                             <p className="text-xs text-gray-500 truncate">{user.email}</p>
                           </div>

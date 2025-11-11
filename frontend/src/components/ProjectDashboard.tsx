@@ -38,7 +38,7 @@ interface ApiProject {
   name: string;
   description: string;
   status: string;
-  managerId: number;
+  managerId: string; // 백엔드에서 String으로 반환됨
   startDate: string;
   endDate: string;
   createdAt: string;
@@ -84,6 +84,7 @@ export default function ProjectDashboard({ onProjectSelect, onCreateProject }: P
   // API에서 가져온 프로젝트와 태스크
   const [apiProjects, setApiProjects] = useState<ApiProject[]>([]);
   const [apiTasks, setApiTasks] = useState<ApiTask[]>([]);
+  const [projectMembers, setProjectMembers] = useState<Record<number, any[]>>({});
   const [loading, setLoading] = useState(true);
 
   // API에서 프로젝트와 태스크 로드
@@ -96,6 +97,21 @@ export default function ProjectDashboard({ onProjectSelect, onCreateProject }: P
         ]);
         setApiProjects(projectsRes.data);
         setApiTasks(tasksRes.data);
+        
+        // 각 프로젝트의 멤버 로드
+        const membersMap: Record<number, any[]> = {};
+        await Promise.all(
+          projectsRes.data.map(async (project: ApiProject) => {
+            try {
+              const membersRes = await api.get(`/projects/${project.id}/members`);
+              membersMap[project.id] = membersRes.data;
+            } catch (error) {
+              console.error(`프로젝트 ${project.id} 멤버 로드 실패:`, error);
+              membersMap[project.id] = [];
+            }
+          })
+        );
+        setProjectMembers(membersMap);
       } catch (error) {
         console.error('데이터 로드 실패:', error);
       } finally {
@@ -106,19 +122,30 @@ export default function ProjectDashboard({ onProjectSelect, onCreateProject }: P
   }, []);
 
   // API 데이터를 기존 Project 형식으로 변환
-  const myProjects = apiProjects.map(p => ({
-    id: p.id.toString(),
-    key: p.projectKey || 'PROJ',
-    name: p.name,
-    description: p.description || '',
-    status: p.status.toLowerCase().replace('_', '-') as any,
-    type: 'software' as const,
-    leadId: currentUser?.id || '1',
-    members: [],
-    startDate: p.startDate,
-    endDate: p.endDate,
-    createdAt: p.createdAt,
-    updatedAt: p.updatedAt,
+  const myProjects = apiProjects.map(p => {
+    const members = projectMembers[p.id] || [];
+    
+    console.log(`프로젝트 ${p.name}의 managerId:`, p.managerId);
+    
+    return {
+      id: p.id.toString(),
+      key: p.projectKey || 'PROJ',
+      name: p.name,
+      description: p.description || '',
+      status: p.status.toLowerCase().replace('_', '-') as any,
+      type: 'software' as const,
+      leadId: p.managerId || (currentUser?.id || '1'),
+      members: members.map(m => ({
+        id: m.userId.toString(),
+        name: m.userFullName || m.username,
+        email: m.userEmail,
+        role: 'member' as const,
+        avatar: undefined
+      })),
+      startDate: p.startDate,
+      endDate: p.endDate,
+      createdAt: p.createdAt,
+      updatedAt: p.updatedAt,
     tasks: apiTasks
       .filter(t => t.projectId === p.id)
       .map(t => {
@@ -164,7 +191,8 @@ export default function ProjectDashboard({ onProjectSelect, onCreateProject }: P
       requireApproval: false,
       notifyOnUpdates: true
     }
-  }));
+  };
+});
 
   const assignedTasks = apiTasks.map(t => {
     // 백엔드 상태 매핑
@@ -276,16 +304,19 @@ export default function ProjectDashboard({ onProjectSelect, onCreateProject }: P
 
   // Calculate statistics
   const activeProjectsList = myProjects.filter(p => p.status === 'active');
-  const completedTasksList = assignedTasks.filter(t => t.status === 'done');
+  const inProgressTasksList = assignedTasks.filter(t => t.status === 'in-progress');
   const overdueTasksList = assignedTasks.filter(t => 
     t.dueDate && new Date(t.dueDate) < new Date() && t.status !== 'done'
   );
+  
+  // 할당된 태스크에서 완료된 태스크 제외
+  const assignedTasksExcludingCompleted = assignedTasks.filter(t => t.status !== 'done');
 
   const stats = {
     totalProjects: myProjects.length,
     activeProjects: activeProjectsList.length,
-    totalTasks: assignedTasks.length,
-    completedTasks: completedTasksList.length,
+    totalTasks: assignedTasksExcludingCompleted.length,
+    inProgressTasks: inProgressTasksList.length,
     overdueTasks: overdueTasksList.length,
     upcomingDeadlines: upcomingDeadlines.length
   };
@@ -344,7 +375,13 @@ export default function ProjectDashboard({ onProjectSelect, onCreateProject }: P
                   <p className="font-semibold">내 프로젝트 ({myProjects.length}개)</p>
                   {myProjects.length > 0 ? (
                     myProjects.map(project => (
-                      <p key={project.id} className="text-sm">• {project.name}</p>
+                      <p 
+                        key={project.id} 
+                        className="text-sm hover:text-blue-600 cursor-pointer transition-colors"
+                        onClick={() => onProjectSelect(project.id)}
+                      >
+                        • {project.name}
+                      </p>
                     ))
                   ) : (
                     <p className="text-sm">참여 중인 프로젝트가 없습니다.</p>
@@ -378,7 +415,13 @@ export default function ProjectDashboard({ onProjectSelect, onCreateProject }: P
                   <p className="font-semibold">진행 중인 프로젝트 ({activeProjectsList.length}개)</p>
                   {activeProjectsList.length > 0 ? (
                     activeProjectsList.map(project => (
-                      <p key={project.id} className="text-sm">• {project.name}</p>
+                      <p 
+                        key={project.id} 
+                        className="text-sm hover:text-green-600 cursor-pointer transition-colors"
+                        onClick={() => onProjectSelect(project.id)}
+                      >
+                        • {project.name}
+                      </p>
                     ))
                   ) : (
                     <p className="text-sm">진행 중인 프로젝트가 없습니다.</p>
@@ -398,10 +441,10 @@ export default function ProjectDashboard({ onProjectSelect, onCreateProject }: P
                   </CardHeader>
                   <CardContent>
                     <div className="text-2xl font-bold text-purple-600">{stats.totalTasks}</div>
-                    {assignedTasks.length > 0 && (
+                    {assignedTasksExcludingCompleted.length > 0 && (
                       <div className="text-xs text-gray-500 mt-1 truncate">
-                        {assignedTasks.slice(0, 2).map(t => t.title).join(', ')}
-                        {assignedTasks.length > 2 && ' 외 ' + (assignedTasks.length - 2) + '개'}
+                        {assignedTasksExcludingCompleted.slice(0, 2).map(t => t.title).join(', ')}
+                        {assignedTasksExcludingCompleted.length > 2 && ' 외 ' + (assignedTasksExcludingCompleted.length - 2) + '개'}
                       </div>
                     )}
                   </CardContent>
@@ -409,10 +452,16 @@ export default function ProjectDashboard({ onProjectSelect, onCreateProject }: P
               </TooltipTrigger>
               <TooltipContent className="max-w-xs">
                 <div className="space-y-1">
-                  <p className="font-semibold">할당된 태스크 ({assignedTasks.length}개)</p>
-                  {assignedTasks.length > 0 ? (
-                    assignedTasks.map(task => (
-                      <p key={task.id} className="text-sm">• {task.title}</p>
+                  <p className="font-semibold">할당된 태스크 ({assignedTasksExcludingCompleted.length}개)</p>
+                  {assignedTasksExcludingCompleted.length > 0 ? (
+                    assignedTasksExcludingCompleted.map(task => (
+                      <p 
+                        key={task.id} 
+                        className="text-sm hover:text-purple-600 cursor-pointer transition-colors"
+                        onClick={() => onProjectSelect(task.projectId)}
+                      >
+                        • {task.title}
+                      </p>
                     ))
                   ) : (
                     <p className="text-sm">할당된 태스크가 없습니다.</p>
@@ -426,16 +475,16 @@ export default function ProjectDashboard({ onProjectSelect, onCreateProject }: P
                 <Card className="hover:shadow-md transition-shadow cursor-help">
                   <CardHeader className="pb-2">
                     <CardTitle className="flex items-center gap-2 text-sm">
-                      <CheckCircle className="w-4 h-4 text-blue-600" />
-                      완료된 태스크
+                      <PlayCircle className="w-4 h-4 text-blue-600" />
+                      진행 중인 태스크
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold text-blue-600">{stats.completedTasks}</div>
-                    {completedTasksList.length > 0 && (
+                    <div className="text-2xl font-bold text-blue-600">{stats.inProgressTasks}</div>
+                    {inProgressTasksList.length > 0 && (
                       <div className="text-xs text-gray-500 mt-1 truncate">
-                        {completedTasksList.slice(0, 2).map(t => t.title).join(', ')}
-                        {completedTasksList.length > 2 && ' 외 ' + (completedTasksList.length - 2) + '개'}
+                        {inProgressTasksList.slice(0, 2).map(t => t.title).join(', ')}
+                        {inProgressTasksList.length > 2 && ' 외 ' + (inProgressTasksList.length - 2) + '개'}
                       </div>
                     )}
                   </CardContent>
@@ -443,13 +492,19 @@ export default function ProjectDashboard({ onProjectSelect, onCreateProject }: P
               </TooltipTrigger>
               <TooltipContent className="max-w-xs">
                 <div className="space-y-1">
-                  <p className="font-semibold">완료된 태스크 ({completedTasksList.length}개)</p>
-                  {completedTasksList.length > 0 ? (
-                    completedTasksList.map(task => (
-                      <p key={task.id} className="text-sm">• {task.title}</p>
+                  <p className="font-semibold">진행 중인 태스크 ({inProgressTasksList.length}개)</p>
+                  {inProgressTasksList.length > 0 ? (
+                    inProgressTasksList.map(task => (
+                      <p 
+                        key={task.id} 
+                        className="text-sm hover:text-blue-600 cursor-pointer transition-colors"
+                        onClick={() => onProjectSelect(task.projectId)}
+                      >
+                        • {task.title}
+                      </p>
                     ))
                   ) : (
-                    <p className="text-sm">완료된 태스크가 없습니다.</p>
+                    <p className="text-sm">진행 중인 태스크가 없습니다.</p>
                   )}
                 </div>
               </TooltipContent>
@@ -480,7 +535,11 @@ export default function ProjectDashboard({ onProjectSelect, onCreateProject }: P
                   <p className="font-semibold">지연된 태스크 ({overdueTasksList.length}개)</p>
                   {overdueTasksList.length > 0 ? (
                     overdueTasksList.map(task => (
-                      <p key={task.id} className="text-sm text-red-600">
+                      <p 
+                        key={task.id} 
+                        className="text-sm text-red-600 hover:text-red-700 cursor-pointer transition-colors"
+                        onClick={() => onProjectSelect(task.projectId)}
+                      >
                         • {task.title} 
                         {task.dueDate && (
                           <span className="text-xs"> (마감: {formatDate(task.dueDate)})</span>
@@ -521,7 +580,11 @@ export default function ProjectDashboard({ onProjectSelect, onCreateProject }: P
                     upcomingDeadlines.map(task => {
                       const daysUntil = task.dueDate ? getDaysUntilDeadline(task.dueDate) : null;
                       return (
-                        <p key={task.id} className="text-sm text-orange-600">
+                        <p 
+                          key={task.id} 
+                          className="text-sm text-orange-600 hover:text-orange-700 cursor-pointer transition-colors"
+                          onClick={() => onProjectSelect(task.projectId)}
+                        >
                           • {task.title}
                           {task.dueDate && daysUntil !== null && (
                             <span className="text-xs">

@@ -42,6 +42,9 @@ public class Project {
     @OneToMany(mappedBy = "project", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<Task> tasks = new ArrayList<>();
     
+    @OneToMany(mappedBy = "project", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    private List<ProjectMember> projectMembers = new ArrayList<>();
+    
     // 기본 생성자
     public Project() {
         this.createdAt = LocalDateTime.now();
@@ -136,6 +139,14 @@ public class Project {
     
     public void setTasks(List<Task> tasks) {
         this.tasks = tasks;
+    }
+    
+    public List<ProjectMember> getProjectMembers() {
+        return projectMembers;
+    }
+    
+    public void setProjectMembers(List<ProjectMember> projectMembers) {
+        this.projectMembers = projectMembers;
     }
     
     // 업데이트 시 자동으로 updatedAt 설정

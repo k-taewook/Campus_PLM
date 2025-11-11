@@ -50,11 +50,18 @@ public class ProjectService {
     
     // 프로젝트 생성
     public ProjectDto createProject(ProjectDto projectDto) {
+        System.out.println("=== ProjectService.createProject 시작 ===");
+        System.out.println("DTO managerId: " + projectDto.getManagerId());
+        
         Project project = convertToEntity(projectDto);
+        System.out.println("Entity managerId: " + project.getManagerId());
+        
         if (project.getStatus() == null) {
             project.setStatus(ProjectStatus.PLANNING);
         }
         Project savedProject = projectRepository.save(project);
+        System.out.println("저장된 프로젝트 managerId: " + savedProject.getManagerId());
+        
         return convertToDto(savedProject);
     }
     
@@ -70,11 +77,26 @@ public class ProjectService {
     
     // 프로젝트 삭제
     public boolean deleteProject(Long id) {
-        if (projectRepository.existsById(id)) {
+        try {
+            System.out.println("=== 프로젝트 삭제 시작 ===");
+            System.out.println("프로젝트 ID: " + id);
+            
+            if (!projectRepository.existsById(id)) {
+                System.out.println("프로젝트를 찾을 수 없음: " + id);
+                return false;
+            }
+            
+            // 프로젝트와 연결된 모든 데이터가 CASCADE로 자동 삭제됨
+            // - ProjectMember (CASCADE.ALL, orphanRemoval = true)
+            // - Task (CASCADE.ALL)
             projectRepository.deleteById(id);
+            System.out.println("프로젝트 삭제 성공: " + id);
             return true;
+        } catch (Exception e) {
+            System.err.println("프로젝트 삭제 중 오류 발생: " + e.getMessage());
+            e.printStackTrace();
+            throw new RuntimeException("Failed to delete project: " + e.getMessage(), e);
         }
-        return false;
     }
     
     // 상태별 프로젝트 조회
@@ -204,23 +226,37 @@ public class ProjectService {
     
     // 프로젝트 멤버 일괄 추가
     public List<ProjectMemberDto> addProjectMembersBulk(Long projectId, List<Long> userIds) {
+        System.out.println("ProjectService.addProjectMembersBulk 시작");
+        System.out.println("프로젝트 ID: " + projectId + ", 사용자 ID 목록: " + userIds);
+        
         Project project = projectRepository.findById(projectId)
                 .orElseThrow(() -> new RuntimeException("Project not found with id: " + projectId));
         
+        System.out.println("프로젝트 찾음: " + project.getName());
+        
         List<ProjectMember> members = userIds.stream()
-                .filter(userId -> !projectMemberRepository.existsByProjectIdAndUserId(projectId, userId))
+                .filter(userId -> {
+                    boolean exists = projectMemberRepository.existsByProjectIdAndUserId(projectId, userId);
+                    System.out.println("사용자 " + userId + " 이미 존재 여부: " + exists);
+                    return !exists;
+                })
                 .map(userId -> {
+                    System.out.println("사용자 " + userId + " 추가 중...");
                     User user = userRepository.findById(userId)
                             .orElseThrow(() -> new RuntimeException("User not found with id: " + userId));
                     
                     ProjectMember member = new ProjectMember();
                     member.setProject(project);
                     member.setUser(user);
+                    System.out.println("멤버 객체 생성 완료: " + user.getUsername());
                     return member;
                 })
                 .collect(Collectors.toList());
         
+        System.out.println("저장할 멤버 수: " + members.size());
         List<ProjectMember> savedMembers = projectMemberRepository.saveAll(members);
+        System.out.println("저장된 멤버 수: " + savedMembers.size());
+        
         return savedMembers.stream()
                 .map(this::convertToMemberDto)
                 .collect(Collectors.toList());

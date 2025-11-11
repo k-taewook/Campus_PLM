@@ -28,11 +28,9 @@ export default function CreateTaskDialog({ open, onOpenChange, projectId, onTask
     priority: 'medium' as const,
     assigneeIds: [] as string[],
     startDate: '',
-    dueDate: '',
-    labels: [] as string[]
+    dueDate: ''
   });
   
-  const [newLabel, setNewLabel] = useState('');
   const [memberSearchQuery, setMemberSearchQuery] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [projectMembers, setProjectMembers] = useState<any[]>([]);
@@ -117,10 +115,8 @@ export default function CreateTaskDialog({ open, onOpenChange, projectId, onTask
         priority: 'medium',
         assigneeIds: [],
         startDate: '',
-        dueDate: '',
-        labels: []
+        dueDate: ''
       });
-      setNewLabel('');
       setMemberSearchQuery('');
       
       if (onTaskCreated) {
@@ -132,23 +128,6 @@ export default function CreateTaskDialog({ open, onOpenChange, projectId, onTask
     } finally {
       setIsSubmitting(false);
     }
-  };
-
-  const addLabel = () => {
-    if (newLabel.trim() && !formData.labels.includes(newLabel.trim())) {
-      setFormData({
-        ...formData,
-        labels: [...formData.labels, newLabel.trim()]
-      });
-      setNewLabel('');
-    }
-  };
-
-  const removeLabel = (labelToRemove: string) => {
-    setFormData({
-      ...formData,
-      labels: formData.labels.filter(label => label !== labelToRemove)
-    });
   };
 
   const handleAssigneeToggle = (userId: string) => {
@@ -371,44 +350,6 @@ export default function CreateTaskDialog({ open, onOpenChange, projectId, onTask
                 value={formData.dueDate}
                 onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })}
               />
-            </div>
-          </div>
-
-          {/* Labels */}
-          <div>
-            <Label>레이블</Label>
-            <div className="mt-2 space-y-3">
-              {formData.labels.length > 0 && (
-                <div className="flex flex-wrap gap-2">
-                  {formData.labels.map(label => (
-                    <Badge 
-                      key={label} 
-                      variant="outline" 
-                      className="cursor-pointer hover:bg-red-50 hover:border-red-200"
-                      onClick={() => removeLabel(label)}
-                    >
-                      {label} ×
-                    </Badge>
-                  ))}
-                </div>
-              )}
-              
-              <div className="flex gap-2">
-                <Input
-                  value={newLabel}
-                  onChange={(e) => setNewLabel(e.target.value)}
-                  placeholder="새 레이블 입력"
-                  onKeyPress={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      addLabel();
-                    }
-                  }}
-                />
-                <Button type="button" variant="outline" size="sm" onClick={addLabel}>
-                  <Plus className="w-4 h-4" />
-                </Button>
-              </div>
             </div>
           </div>
 
