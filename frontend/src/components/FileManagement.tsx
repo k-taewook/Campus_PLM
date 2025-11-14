@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Paperclip, Upload as UploadIcon } from 'lucide-react';
+import { Paperclip, Upload as UploadIcon, Edit3, Trash2, X } from 'lucide-react';
 import FileUploadZone from './FileUploadZone';
 import FileList, { FileItem } from './FileList';
 import api from '../services/api';
@@ -21,6 +21,9 @@ export default function FileManagement({
   const [isUploading, setIsUploading] = useState(false);
   const [showUploadZone, setShowUploadZone] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [selectedFiles, setSelectedFiles] = useState<Set<number>>(new Set());
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // 파일 목록 불러오기
   useEffect(() => {
@@ -124,6 +127,77 @@ export default function FileManagement({
     }
   };
 
+  // 선택된 파일 일괄 삭제
+  const handleBulkDelete = async () => {
+    if (selectedFiles.size === 0) {
+      alert('삭제할 파일을 선택해주세요.');
+      return;
+    }
+
+    const confirmMessage = `선택한 ${selectedFiles.size}개의 파일을 삭제하시겠습니까?`;
+    if (!window.confirm(confirmMessage)) {
+      return;
+    }
+
+    setIsDeleting(true);
+    setError(null);
+
+    try {
+      const fileIdsArray = Array.from(selectedFiles);
+      
+      // 백엔드 일괄 삭제 API 사용
+      const response = await api.delete('/files/bulk', {
+        data: fileIdsArray
+      });
+      
+      // 삭제 성공 후 상태 초기화 및 목록 새로고침
+      setSelectedFiles(new Set());
+      setIsEditMode(false);
+      await loadFiles();
+      
+      // 삭제 결과 표시
+      if (response.data.failureCount > 0) {
+        alert(`${response.data.successCount}개 파일이 삭제되었습니다. (${response.data.failureCount}개 실패)`);
+      } else {
+        alert(`${response.data.successCount}개 파일이 삭제되었습니다.`);
+      }
+    } catch (err: any) {
+      console.error('파일 삭제 실패:', err);
+      setError('파일 삭제에 실패했습니다. 다시 시도해주세요.');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  // 파일 선택/해제
+  const handleFileSelect = (fileId: number, selected: boolean) => {
+    const newSelected = new Set(selectedFiles);
+    if (selected) {
+      newSelected.add(fileId);
+    } else {
+      newSelected.delete(fileId);
+    }
+    setSelectedFiles(newSelected);
+  };
+
+  // 전체 선택/해제
+  const handleSelectAll = (selected: boolean) => {
+    if (selected) {
+      setSelectedFiles(new Set(files.map(f => f.id)));
+    } else {
+      setSelectedFiles(new Set());
+    }
+  };
+
+  // 편집 모드 토글
+  const toggleEditMode = () => {
+    if (isEditMode) {
+      // 편집 모드 종료 시 선택 초기화
+      setSelectedFiles(new Set());
+    }
+    setIsEditMode(!isEditMode);
+  };
+
   return (
     <div className="space-y-4">
       {/* 헤더 */}
@@ -133,17 +207,54 @@ export default function FileManagement({
           <h3 className="text-lg font-semibold text-gray-800">
             {title} ({files.length})
           </h3>
+          {isEditMode && selectedFiles.size > 0 && (
+            <span className="text-sm text-blue-600 font-medium">
+              {selectedFiles.size}개 선택됨
+            </span>
+          )}
         </div>
         
-        {!showUploadZone && (
-          <button
-            onClick={() => setShowUploadZone(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition"
-          >
-            <UploadIcon className="w-4 h-4" />
-            <span>파일 업로드</span>
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {!showUploadZone && !isEditMode && (
+            <>
+              <button
+                onClick={toggleEditMode}
+                className="flex items-center gap-2 px-4 py-2 border border-gray-300 hover:bg-gray-100 text-gray-700 rounded-lg transition"
+              >
+                <Edit3 className="w-4 h-4" />
+                <span>파일 편집</span>
+              </button>
+              <button
+                onClick={() => setShowUploadZone(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition"
+              >
+                <UploadIcon className="w-4 h-4" />
+                <span>파일 업로드</span>
+              </button>
+            </>
+          )}
+          
+          {isEditMode && (
+            <>
+              <button
+                onClick={handleBulkDelete}
+                disabled={selectedFiles.size === 0 || isDeleting}
+                className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white rounded-lg transition"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span>{isDeleting ? '삭제 중...' : '선택 파일 삭제'}</span>
+              </button>
+              <button
+                onClick={toggleEditMode}
+                disabled={isDeleting}
+                className="flex items-center gap-2 px-4 py-2 border border-gray-300 hover:bg-gray-100 text-gray-700 rounded-lg transition"
+              >
+                <X className="w-4 h-4" />
+                <span>취소</span>
+              </button>
+            </>
+          )}
+        </div>
       </div>
 
       {/* 에러 메시지 */}
@@ -185,6 +296,10 @@ export default function FileManagement({
         files={files}
         onDownload={handleDownload}
         onDelete={handleDelete}
+        isEditMode={isEditMode}
+        selectedFiles={selectedFiles}
+        onFileSelect={handleFileSelect}
+        onSelectAll={handleSelectAll}
       />
     </div>
   );

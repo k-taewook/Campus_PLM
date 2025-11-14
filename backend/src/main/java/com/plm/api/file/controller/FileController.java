@@ -138,6 +138,35 @@ public class FileController {
         }
     }
 
+    // 파일 일괄 삭제
+    @DeleteMapping("/bulk")
+    public ResponseEntity<Map<String, Object>> deleteFiles(@RequestBody List<Long> fileIds) {
+        try {
+            int successCount = 0;
+            int failureCount = 0;
+            
+            for (Long fileId : fileIds) {
+                try {
+                    fileService.deleteFile(fileId);
+                    successCount++;
+                } catch (Exception e) {
+                    failureCount++;
+                    System.err.println("Failed to delete file with id " + fileId + ": " + e.getMessage());
+                }
+            }
+            
+            Map<String, Object> response = Map.of(
+                "totalRequested", fileIds.size(),
+                "successCount", successCount,
+                "failureCount", failureCount
+            );
+            
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            throw new RuntimeException("Bulk delete operation failed: " + e.getMessage());
+        }
+    }
+
     // 파일 정보 수정 (현재: 파일명만 수정)
     @PutMapping("/{id}")
     public ResponseEntity<FileDto> updateFile(@PathVariable Long id, @RequestBody Map<String, Object> body) {

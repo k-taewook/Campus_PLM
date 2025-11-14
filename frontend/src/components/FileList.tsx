@@ -1,3 +1,4 @@
+import React from 'react';
 import { Download, Trash2, File, FileText, Image, Video, Music, Archive, Eye } from 'lucide-react';
 
 export interface FileItem {
@@ -17,9 +18,22 @@ interface FileListProps {
   onDownload: (fileId: number, fileName: string) => void;
   onDelete: (fileId: number) => void;
   showDelete?: boolean;
+  isEditMode?: boolean;
+  selectedFiles?: Set<number>;
+  onFileSelect?: (fileId: number, selected: boolean) => void;
+  onSelectAll?: (selected: boolean) => void;
 }
 
-export default function FileList({ files, onDownload, onDelete, showDelete = true }: FileListProps) {
+export default function FileList({ 
+  files, 
+  onDownload, 
+  onDelete, 
+  showDelete = true,
+  isEditMode = false,
+  selectedFiles = new Set(),
+  onFileSelect,
+  onSelectAll
+}: FileListProps) {
   
   const getFileIcon = (mimeType: string) => {
     if (mimeType.startsWith('image/')) return <Image className="w-5 h-5 text-blue-500" />;
@@ -63,13 +77,55 @@ export default function FileList({ files, onDownload, onDelete, showDelete = tru
     );
   }
 
+  const allSelected = files.length > 0 && selectedFiles.size === files.length;
+  const someSelected = selectedFiles.size > 0 && selectedFiles.size < files.length;
+
   return (
     <div className="space-y-2">
-      {files.map(file => (
+      {/* 편집 모드일 때 전체 선택 체크박스 */}
+      {isEditMode && files.length > 0 && (
+        <div className="flex items-center p-3 bg-gray-50 border border-gray-200 rounded-lg">
+          <label className="flex items-center gap-3 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={allSelected}
+              ref={(el) => {
+                if (el) el.indeterminate = someSelected;
+              }}
+              onChange={(e) => onSelectAll?.(e.target.checked)}
+              className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+            />
+            <span className="text-sm font-medium text-gray-700">
+              {allSelected ? '전체 해제' : someSelected ? `${selectedFiles.size}개 선택됨` : '전체 선택'}
+            </span>
+          </label>
+        </div>
+      )}
+
+      {files.map(file => {
+        const isSelected = selectedFiles.has(file.id);
+        
+        return (
         <div 
           key={file.id} 
-          className="flex items-center justify-between p-4 bg-white border border-gray-200 rounded-lg hover:shadow-md transition group"
+          className={`flex items-center justify-between p-4 bg-white border rounded-lg transition group ${
+            isEditMode && isSelected 
+              ? 'border-blue-500 bg-blue-50' 
+              : 'border-gray-200 hover:shadow-md'
+          }`}
         >
+          {/* 편집 모드일 때 체크박스 */}
+          {isEditMode && (
+            <div className="flex items-center mr-3">
+              <input
+                type="checkbox"
+                checked={isSelected}
+                onChange={(e) => onFileSelect?.(file.id, e.target.checked)}
+                className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+              />
+            </div>
+          )}
+          
           {/* 파일 정보 */}
           <div className="flex items-center gap-3 flex-1 min-w-0">
             {getFileIcon(file.mimeType)}
@@ -96,45 +152,48 @@ export default function FileList({ files, onDownload, onDelete, showDelete = tru
             </div>
           </div>
 
-          {/* 액션 버튼 */}
-          <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition">
-            {/* 미리보기 (이미지만) */}
-            {file.mimeType.startsWith('image/') && (
+          {/* 액션 버튼 - 편집 모드가 아닐 때만 표시 */}
+          {!isEditMode && (
+            <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition">
+              {/* 미리보기 (이미지만) */}
+              {file.mimeType.startsWith('image/') && (
+                <button
+                  onClick={() => window.open(`http://localhost:8080/api/files/${file.id}/download`, '_blank')}
+                  className="p-2 hover:bg-blue-100 rounded-lg transition"
+                  title="미리보기"
+                >
+                  <Eye className="w-4 h-4 text-blue-600" />
+                </button>
+              )}
+              
+              {/* 다운로드 */}
               <button
-                onClick={() => window.open(`http://localhost:8080/api/files/${file.id}/download`, '_blank')}
-                className="p-2 hover:bg-blue-100 rounded-lg transition"
-                title="미리보기"
+                onClick={() => onDownload(file.id, file.originalName)}
+                className="p-2 hover:bg-green-100 rounded-lg transition"
+                title="다운로드"
               >
-                <Eye className="w-4 h-4 text-blue-600" />
+                <Download className="w-4 h-4 text-green-600" />
               </button>
-            )}
-            
-            {/* 다운로드 */}
-            <button
-              onClick={() => onDownload(file.id, file.originalName)}
-              className="p-2 hover:bg-green-100 rounded-lg transition"
-              title="다운로드"
-            >
-              <Download className="w-4 h-4 text-green-600" />
-            </button>
-            
-            {/* 삭제 */}
-            {showDelete && (
-              <button
-                onClick={() => {
-                  if (window.confirm(`"${file.originalName}"을(를) 삭제하시겠습니까?`)) {
-                    onDelete(file.id);
-                  }
-                }}
-                className="p-2 hover:bg-red-100 rounded-lg transition"
-                title="삭제"
-              >
-                <Trash2 className="w-4 h-4 text-red-600" />
-              </button>
-            )}
-          </div>
+              
+              {/* 삭제 */}
+              {showDelete && (
+                <button
+                  onClick={() => {
+                    if (window.confirm(`"${file.originalName}"을(를) 삭제하시겠습니까?`)) {
+                      onDelete(file.id);
+                    }
+                  }}
+                  className="p-2 hover:bg-red-100 rounded-lg transition"
+                  title="삭제"
+                >
+                  <Trash2 className="w-4 h-4 text-red-600" />
+                </button>
+              )}
+            </div>
+          )}
         </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

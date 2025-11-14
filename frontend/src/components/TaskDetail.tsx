@@ -17,7 +17,10 @@ import {
   Play,
   Pause,
   CheckCircle,
-  Plus
+  Plus,
+  Download,
+  Eye,
+  Edit3
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
@@ -68,10 +71,16 @@ export default function TaskDetail({ taskId, onBack, onTaskUpdated }: TaskDetail
   const [newChecklistItem, setNewChecklistItem] = useState('');
   const [showChecklistForm, setShowChecklistForm] = useState(false);
   
+  // 파일 관련 상태
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgressMap, setUploadProgressMap] = useState<Record<string, number>>({});
   const [uploadDoneCount, setUploadDoneCount] = useState<number>(0);
+  
+  // 파일 편집 모드 상태
+  const [isFileEditMode, setIsFileEditMode] = useState(false);
+  const [selectedFileIds, setSelectedFileIds] = useState<Set<string>>(new Set());
+  const [isDeletingFiles, setIsDeletingFiles] = useState(false);
 
   useEffect(() => {
     loadTaskData();
@@ -330,7 +339,6 @@ export default function TaskDetail({ taskId, onBack, onTaskUpdated }: TaskDetail
       const taskIdNum = Number(taskId);
 
       const filesArr: File[] = Array.from(files as FileList);
-      // 초기 프로그레스 0으로 설정
       const initialMap: Record<string, number> = {};
       const keys = filesArr.map((file, idx) => `${file.name}-${idx}-${Date.now()}`);
       keys.forEach((k) => (initialMap[k] = 0));
@@ -354,7 +362,6 @@ export default function TaskDetail({ taskId, onBack, onTaskUpdated }: TaskDetail
         })
       );
 
-      // 업로드 완료 후 목록 재로딩
       setUploadDoneCount(filesArr.length);
       setTimeout(() => setUploadDoneCount(0), 3000);
       const updatedFiles: FileDto[] = await getTaskFiles(taskIdNum);
@@ -378,7 +385,6 @@ export default function TaskDetail({ taskId, onBack, onTaskUpdated }: TaskDetail
     }
   };
 
-  // 첨부파일 목록 새로고침
   const reloadAttachments = async () => {
     try {
       const list = await getTaskFiles(Number(taskId));
@@ -397,7 +403,6 @@ export default function TaskDetail({ taskId, onBack, onTaskUpdated }: TaskDetail
     }
   };
 
-  // 첨부파일 삭제
   const handleDeleteAttachment = async (attachmentId: string) => {
     if (!confirm('이 첨부파일을 삭제하시겠습니까?')) return;
     try {
@@ -410,18 +415,70 @@ export default function TaskDetail({ taskId, onBack, onTaskUpdated }: TaskDetail
     }
   };
 
-  // 첨부파일 이름 수정
-  const handleRenameAttachment = async (attachmentId: string, currentName: string) => {
-    const newName = window.prompt('새 파일명을 입력하세요', currentName);
-    if (!newName || newName.trim() === '' || newName === currentName) return;
-    try {
-      await updateFileOriginalName(Number(attachmentId), newName.trim());
-      await reloadAttachments();
-      alert('파일명이 변경되었습니다.');
-    } catch (e) {
-      console.error('파일명 변경 실패:', e);
-      alert('파일명 변경에 실패했습니다.');
+  // 선택된 파일 일괄 삭제
+  const handleBulkDeleteFiles = async () => {
+    if (selectedFileIds.size === 0) {
+      alert('삭제할 파일을 선택해주세요.');
+      return;
     }
+
+    const confirmMessage = `선택한 ${selectedFileIds.size}개의 파일을 삭제하시겠습니까?`;
+    if (!window.confirm(confirmMessage)) {
+      return;
+    }
+
+    setIsDeletingFiles(true);
+
+    try {
+      const fileIdsArray = Array.from(selectedFileIds).map(id => Number(id));
+      
+      const response = await api.delete('/files/bulk', {
+        data: fileIdsArray
+      });
+      
+      setSelectedFileIds(new Set());
+      setIsFileEditMode(false);
+      await reloadAttachments();
+      
+      if (response.data.failureCount > 0) {
+        alert(`${response.data.successCount}개 파일이 삭제되었습니다. (${response.data.failureCount}개 실패)`);
+      } else {
+        alert(`${response.data.successCount}개 파일이 삭제되었습니다.`);
+      }
+    } catch (err: any) {
+      console.error('파일 삭제 실패:', err);
+      alert('파일 삭제에 실패했습니다. 다시 시도해주세요.');
+    } finally {
+      setIsDeletingFiles(false);
+    }
+  };
+
+  // 파일 선택/해제
+  const handleFileSelect = (fileId: string, selected: boolean) => {
+    const newSelected = new Set(selectedFileIds);
+    if (selected) {
+      newSelected.add(fileId);
+    } else {
+      newSelected.delete(fileId);
+    }
+    setSelectedFileIds(newSelected);
+  };
+
+  // 전체 선택/해제
+  const handleSelectAllFiles = (selected: boolean) => {
+    if (selected) {
+      setSelectedFileIds(new Set(task.attachments.map((f: any) => f.id)));
+    } else {
+      setSelectedFileIds(new Set());
+    }
+  };
+
+  // 파일 편집 모드 토글
+  const toggleFileEditMode = () => {
+    if (isFileEditMode) {
+      setSelectedFileIds(new Set());
+    }
+    setIsFileEditMode(!isFileEditMode);
   };
 
   const handleAddLink = () => {
@@ -957,26 +1014,59 @@ export default function TaskDetail({ taskId, onBack, onTaskUpdated }: TaskDetail
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center justify-between">
-                  <span>첨부파일 및 링크</span>
+                  <div className="flex items-center gap-2">
+                    <span>첨부파일 및 링크 ({task.attachments.length})</span>
+                    {isFileEditMode && selectedFileIds.size > 0 && (
+                      <span className="text-sm text-blue-600 font-medium">
+                        {selectedFileIds.size}개 선택됨
+                      </span>
+                    )}
+                  </div>
                   <div className="flex gap-2">
-                    <Button size="sm" variant="outline" onClick={() => fileInputRef.current?.click()}>
-                      <Upload className="w-4 h-4 mr-2" />
-                      파일 업로드
-                    </Button>
-                  {/* <Button size="sm" variant="outline" onClick={() => setShowLinkForm(true)}>
-                    <Link className="w-4 h-4 mr-2" />
-                    링크 추가
-                  </Button> */}
+                    {!isFileEditMode ? (
+                      <>
+                        <Button size="sm" variant="outline" onClick={toggleFileEditMode}>
+                          <Edit3 className="w-4 h-4 mr-2" />
+                          파일 편집
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => fileInputRef.current?.click()}>
+                          <Upload className="w-4 h-4 mr-2" />
+                          파일 업로드
+                        </Button>
+                      </>
+                    ) : (
+                      <>
+                        <Button 
+                          size="sm" 
+                          variant="destructive"
+                          onClick={handleBulkDeleteFiles}
+                          disabled={selectedFileIds.size === 0 || isDeletingFiles}
+                        >
+                          <Trash2 className="w-4 h-4 mr-2" />
+                          {isDeletingFiles ? '삭제 중...' : '선택 파일 삭제'}
+                        </Button>
+                        <Button 
+                          size="sm" 
+                          variant="outline"
+                          onClick={toggleFileEditMode}
+                          disabled={isDeletingFiles}
+                        >
+                          <X className="w-4 h-4 mr-2" />
+                          취소
+                        </Button>
+                      </>
+                    )}
                   </div>
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
-              {/* 업로드 완료 안내 */}
-              {uploadDoneCount > 0 && (
-                <div className="p-3 rounded-md bg-green-50 border border-green-200 text-green-700 text-sm">
-                  {uploadDoneCount}개 파일 업로드가 완료되었습니다.
-                </div>
-              )}
+                {/* 업로드 완료 안내 */}
+                {uploadDoneCount > 0 && (
+                  <div className="p-3 rounded-md bg-green-50 border border-green-200 text-green-700 text-sm">
+                    {uploadDoneCount}개 파일 업로드가 완료되었습니다.
+                  </div>
+                )}
+                
                 {/* 업로드 진행률 표시 */}
                 {isUploading && Object.keys(uploadProgressMap).length > 0 && (
                   <div className="space-y-2 p-3 border rounded-md bg-gray-50">
@@ -992,10 +1082,44 @@ export default function TaskDetail({ taskId, onBack, onTaskUpdated }: TaskDetail
                     ))}
                   </div>
                 )}
+
+                {/* 편집 모드일 때 전체 선택 체크박스 */}
+                {isFileEditMode && task.attachments.length > 0 && (
+                  <div className="flex items-center p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                    <label className="flex items-center gap-3 cursor-pointer">
+                      <Checkbox
+                        checked={selectedFileIds.size === task.attachments.length}
+                        onCheckedChange={handleSelectAllFiles}
+                      />
+                      <span className="text-sm font-medium text-gray-700">
+                        {selectedFileIds.size === task.attachments.length ? '전체 해제' : '전체 선택'}
+                      </span>
+                    </label>
+                  </div>
+                )}
+                
+                {/* 파일 목록 */}
                 {task.attachments.map((attachment: any) => {
                   const uploader = users.find(u => u.id === attachment.uploadedBy);
+                  const isSelected = selectedFileIds.has(attachment.id);
+                  
                   return (
-                    <div key={attachment.id} className="flex items-center gap-3 p-3 border rounded-lg">
+                    <div 
+                      key={attachment.id} 
+                      className={`flex items-center gap-3 p-3 border rounded-lg transition ${
+                        isFileEditMode && isSelected 
+                          ? 'border-blue-500 bg-blue-50' 
+                          : 'border-gray-200'
+                      }`}
+                    >
+                      {/* 편집 모드일 때 체크박스 */}
+                      {isFileEditMode && (
+                        <Checkbox
+                          checked={isSelected}
+                          onCheckedChange={(checked) => handleFileSelect(attachment.id, !!checked)}
+                        />
+                      )}
+                      
                       <div className="flex-shrink-0">
                         {attachment.type === 'link' ? (
                           <Link className="w-5 h-5 text-blue-600" />
@@ -1007,6 +1131,7 @@ export default function TaskDetail({ taskId, onBack, onTaskUpdated }: TaskDetail
                           <Paperclip className="w-5 h-5 text-gray-600" />
                         )}
                       </div>
+                      
                       <div className="flex-1">
                         <div className="font-medium text-sm">
                           {attachment.type === 'link' ? (
@@ -1029,6 +1154,41 @@ export default function TaskDetail({ taskId, onBack, onTaskUpdated }: TaskDetail
                           {attachment.size && ` • ${formatFileSize(attachment.size)}`}
                         </div>
                       </div>
+
+                      {/* 편집 모드가 아닐 때만 액션 버튼 표시 */}
+                      {!isFileEditMode && attachment.type !== 'link' && (
+                        <div className="flex gap-2">
+                          {/* 미리보기 (이미지만) */}
+                          {attachment.type === 'image' && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => window.open(attachment.url, '_blank')}
+                            >
+                              <Eye className="w-4 h-4" />
+                            </Button>
+                          )}
+                          
+                          {/* 다운로드 */}
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => window.open(attachment.url, '_blank')}
+                          >
+                            <Download className="w-4 h-4" />
+                          </Button>
+                          
+                          {/* 삭제 */}
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleDeleteAttachment(attachment.id)}
+                            className="text-red-600 hover:text-red-700"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -1039,9 +1199,6 @@ export default function TaskDetail({ taskId, onBack, onTaskUpdated }: TaskDetail
                     <p className="text-sm">첨부파일이 없습니다</p>
                   </div>
                 )}
-
-                {/* Link Form 보류 */}
-                {/* {showLinkForm && (...)} */}
               </CardContent>
             </Card>
 
