@@ -88,3 +88,6 @@ coverage/
 # frontend/package-lock.json
 # frontend/yarn.lock
 # frontend/pnpm-lock.yaml
+/backend/.gradle
+backend/build/classes/java/main/com/plm/api/project/controller/ProjectController.class
+/backend/build

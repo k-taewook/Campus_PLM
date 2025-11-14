@@ -1,5 +1,8 @@
 # PLM Service Backend
 
+**📅 최종 업데이트**: 2025년 11월 11일  
+**🔖 현재 버전**: v1.3.0
+
 ## 📋 프로젝트 개요
 PLM (Project Lifecycle Management) 시스템의 백엔드 서버입니다.
 프로젝트 생명주기 관리, 태스크 추적, 팀 협업, 파일 관리 등의 기능을 제공합니다.
@@ -95,29 +98,23 @@ backend/
 - 우선순위 관리 (LOW, MEDIUM, HIGH, URGENT)
 - 프로젝트별 태스크 조회
 
-### ✅ 3. User Module (기본 인증 완료 ⭐ NEW)
-**기능**: 사용자 인증 및 권한 관리
+### ✅ 3. User Module (기본 인증 완료 ⭐)
+**기능**: 사용자 인증 및 권한 관리  
 **완료된 기능**:
 - [x] 이메일/비밀번호 기반 회원가입 API (`POST /api/users/auth/register`)
 - [x] 로그인 API (`POST /api/users/auth/login`)
 - [x] BCrypt 비밀번호 암호화
 - [x] 사용자 역할 관리 (ADMIN, MANAGER, DEVELOPER, DESIGNER, TESTER, VIEWER)
-- [x] 관리자 계정 자동 생성 (DataLoader)
+- [x] 관리자 계정 자동 생성 (DataLoader: admin@plm.com / admin1234)
 - [x] 사용자 Repository 쿼리 메서드
 
 **추가 구현 필요**:
-- [ ] JWT 토큰 기반 인증 강화
+- [ ] JWT 토큰 기반 인증 강화 (현재는 기본 인증만)
 - [ ] Refresh Token 구현
 - [ ] 사용자 프로필 수정 API
 - [ ] 비밀번호 변경/재설정
 - [ ] 사용자 검색 및 필터링
 - [ ] 역할 기반 접근 제어 (현재 역할만 저장, 실제 권한 체크 미구현)
-- [ ] JWT 기반 인증/인가 구현
-- [ ] 회원가입 API (비밀번호 암호화)
-- [ ] 로그인 API (토큰 발급)
-- [ ] 프로필 관리 API
-- [ ] 비밀번호 변경/재설정
-- [ ] 사용자 역할별 권한 관리 (ADMIN, MANAGER, DEVELOPER, DESIGNER, TESTER, VIEWER)
 
 ### 🚧 4. Team Module (구조 완성 - 구현 필요)
 **기능**: 팀 구성 및 멤버 관리
@@ -266,36 +263,79 @@ main
 
 ## 📝 샘플 데이터
 `DataLoader.java`에서 초기 샘플 데이터를 자동으로 생성합니다:
-- 3개 프로젝트 (PLM 시스템 개발, 모바일 앱 리뉴얼, AI 챗봇 프로젝트)
-- 9개 태스크 (프로젝트별 3개씩)
+- **관리자 계정**: admin@plm.com / admin1234 (ADMIN 역할)
+- **3개 프로젝트**: PLM 시스템 개발, 모바일 앱 리뉴얼, AI 챗봇 프로젝트
+- **9개 태스크**: 프로젝트별 3개씩 (다양한 상태와 우선순위)
 
 ## 🔧 추가 구현 필요 사항
 
 ### Security 설정
-- [ ] Spring Security 설정
-- [ ] JWT 토큰 발급/검증
+- [ ] JWT 토큰 발급/검증 (현재 기본 인증만 구현)
+- [ ] Refresh Token 메커니즘
 - [ ] @PreAuthorize를 통한 API 권한 제어
 - [ ] CORS 정책 세부 조정
+- [ ] XSS/CSRF 방어
 
 ### 데이터 검증
-- [ ] @Valid를 통한 DTO 검증
+- [ ] @Valid를 통한 DTO 검증 강화
 - [ ] Custom Exception Handler
-- [ ] 에러 응답 표준화
+- [ ] 에러 응답 표준화 (ErrorResponse DTO)
+- [ ] 비즈니스 로직 예외 처리
 
 ### 성능 최적화
 - [ ] N+1 쿼리 문제 해결 (Fetch Join)
-- [ ] 페이징 처리
-- [ ] 캐싱 (Redis)
+- [ ] 페이징 처리 (Pageable)
+- [ ] 인덱스 최적화
+- [ ] 캐싱 (Redis - 선택)
+- [ ] 쿼리 최적화
 
 ### 테스트
 - [ ] Unit Test (Service 계층)
 - [ ] Integration Test (API)
 - [ ] Repository Test
+- [ ] Security Test
 
-## 📚 참고 문서
+## � 버전 히스토리
+
+### v1.3.0 (2025-11-11) ⭐ LATEST
+- ✅ 프론트엔드와 동기화된 안정 버전
+- ✅ 태스크 관리 API 안정화
+- ✅ 파일 관리 시스템 완료 (v1.2.0 기능 유지)
+
+### v1.2.0 (2025-10-31)
+- ✅ **파일 관리 시스템 구현 완료**
+  - 파일 업로드/다운로드/삭제 API
+  - Multipart 파일 처리 (최대 10MB)
+  - 자동 파일 타입 감지
+  - 프로젝트/태스크별 파일 관리
+  - 다운로드 횟수 추적
+  - 로컬 스토리지 (./uploads)
+
+### v1.1.0 (2025-10-28)
+- ✅ **사용자 인증 시스템 구현**
+  - 회원가입/로그인 API
+  - BCrypt 비밀번호 암호화
+  - Spring Security 의존성 추가
+  - 역할 기반 사용자 관리
+  - 관리자 계정 자동 생성
+
+### v1.0.0 (2025-10-27)
+- ✅ 프로젝트/태스크 CRUD API
+- ✅ MySQL 데이터베이스 연동
+- ✅ Feature-based 모듈 구조
+- ✅ CORS 설정
+- ✅ 샘플 데이터 로더
+
+## �📚 참고 문서
 - [Spring Boot Documentation](https://spring.io/projects/spring-boot)
 - [Spring Data JPA](https://spring.io/projects/spring-data-jpa)
+- [Spring Security](https://spring.io/projects/spring-security)
 - [MySQL Documentation](https://dev.mysql.com/doc/)
+- [BCrypt Guide](https://www.baeldung.com/spring-security-registration-password-encoding-bcrypt)
 
 ## 📞 문의
 프로젝트 관련 문의사항은 팀 채널을 통해 공유해주세요.
+
+---
+
+**PLM Service Backend** - 확장 가능한 엔터프라이즈급 프로젝트 관리 API 서버 ⚙️

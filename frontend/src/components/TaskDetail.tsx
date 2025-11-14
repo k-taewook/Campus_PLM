@@ -49,7 +49,6 @@ export default function TaskDetail({ taskId, onBack, onTaskUpdated }: TaskDetail
     updateTask,
     addComment,
     addAttachment,
-    logTime,
     canEditTask
   } = useProjects();
 
@@ -62,8 +61,6 @@ export default function TaskDetail({ taskId, onBack, onTaskUpdated }: TaskDetail
   const [newComment, setNewComment] = useState('');
   const [newLink, setNewLink] = useState({ name: '', url: '' });
   const [showLinkForm, setShowLinkForm] = useState(false);
-  const [timeLog, setTimeLog] = useState({ hours: '', description: '' });
-  const [showTimeLog, setShowTimeLog] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   
   // 체크리스트 관련 상태
@@ -124,8 +121,6 @@ export default function TaskDetail({ taskId, onBack, onTaskUpdated }: TaskDetail
         startDate: taskData.startDate,
         createdAt: taskData.createdAt,
         updatedAt: taskData.updatedAt,
-        estimatedHours: taskData.estimatedHours || 0,
-        loggedHours: taskData.loggedHours || 0,
         progress: taskData.progress || 0,
         comments: [],
         attachments: [],
@@ -243,7 +238,6 @@ export default function TaskDetail({ taskId, onBack, onTaskUpdated }: TaskDetail
       status: task.status,
       priority: task.priority,
       assigneeIds: task.assigneeIds,
-      estimatedHours: task.estimatedHours,
       startDate: task.startDate,
       dueDate: task.dueDate
     });
@@ -266,7 +260,6 @@ export default function TaskDetail({ taskId, onBack, onTaskUpdated }: TaskDetail
         description: editData.description || null,
         status: statusMap[editData.status] || editData.status.toUpperCase().replace('-', '_'),
         priority: editData.priority.toUpperCase(),
-        estimatedHours: editData.estimatedHours || null,
         startDate: editData.startDate || null,
         dueDate: editData.dueDate || null
       };
@@ -307,6 +300,12 @@ export default function TaskDetail({ taskId, onBack, onTaskUpdated }: TaskDetail
       await api.delete(`/tasks/${taskId}`);
       setShowDeleteConfirm(false);
       alert('태스크가 삭제되었습니다.');
+      
+      // 태스크 목록 업데이트
+      if (onTaskUpdated) {
+        onTaskUpdated();
+      }
+      
       onBack(); // 목록으로 돌아가기
     } catch (error) {
       console.error('태스크 삭제 실패:', error);
@@ -436,15 +435,6 @@ export default function TaskDetail({ taskId, onBack, onTaskUpdated }: TaskDetail
       addAttachment('task', taskId, attachment);
       setNewLink({ name: '', url: '' });
       setShowLinkForm(false);
-    }
-  };
-
-  const handleLogTime = () => {
-    const hours = parseFloat(timeLog.hours);
-    if (hours > 0) {
-      logTime(taskId, hours, timeLog.description.trim() || undefined);
-      setTimeLog({ hours: '', description: '' });
-      setShowTimeLog(false);
     }
   };
 
@@ -960,26 +950,6 @@ export default function TaskDetail({ taskId, onBack, onTaskUpdated }: TaskDetail
                     )}
                   </CardContent>
                 </Card>
-
-                {/* Time Tracking */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label>예상 시간</Label>
-                    <div className="mt-1 text-sm">
-                      {task.estimatedHours ? `${task.estimatedHours}시간` : '설정되지 않음'}
-                    </div>
-                  </div>
-                  <div>
-                    <Label>기록된 시간</Label>
-                    <div className="mt-1 text-sm">{task.loggedHours}시간</div>
-                  </div>
-                </div>
-
-                {/* Time Log Button */}
-                <Button variant="outline" size="sm" onClick={() => setShowTimeLog(true)}>
-                  <Clock className="w-4 h-4 mr-2" />
-                  시간 기록
-                </Button>
               </CardContent>
             </Card>
 
@@ -1365,43 +1335,6 @@ export default function TaskDetail({ taskId, onBack, onTaskUpdated }: TaskDetail
           className="hidden"
           onChange={handleFileUpload}
         />
-
-        {/* Time Log Modal */}
-        {showTimeLog && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg p-6 w-96">
-              <h3 className="text-lg font-medium mb-4">시간 기록</h3>
-              <div className="space-y-4">
-                <div>
-                  <Label>작업 시간 (시간)</Label>
-                  <Input
-                    type="number"
-                    step="0.5"
-                    value={timeLog.hours}
-                    onChange={(e) => setTimeLog({ ...timeLog, hours: e.target.value })}
-                    placeholder="예: 2.5"
-                  />
-                </div>
-                <div>
-                  <Label>작업 내용 (선택사항)</Label>
-                  <Textarea
-                    value={timeLog.description}
-                    onChange={(e) => setTimeLog({ ...timeLog, description: e.target.value })}
-                    placeholder="수행한 작업을 간단히 설명해주세요..."
-                  />
-                </div>
-                <div className="flex gap-2">
-                  <Button onClick={handleLogTime} disabled={!timeLog.hours || parseFloat(timeLog.hours) <= 0}>
-                    기록
-                  </Button>
-                  <Button variant="outline" onClick={() => setShowTimeLog(false)}>
-                    취소
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Delete Confirmation Dialog */}

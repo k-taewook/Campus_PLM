@@ -39,9 +39,14 @@ public class ProjectController {
     @PostMapping
     public ResponseEntity<ProjectDto> createProject(@RequestBody ProjectDto projectDto) {
         try {
+            System.out.println("=== 프로젝트 생성 요청 받음 ===");
+            System.out.println("프로젝트 이름: " + projectDto.getName());
             ProjectDto createdProject = projectService.createProject(projectDto);
+            System.out.println("생성된 프로젝트 ID: " + createdProject.getId());
             return ResponseEntity.status(HttpStatus.CREATED).body(createdProject);
         } catch (Exception e) {
+            System.err.println("프로젝트 생성 실패: " + e.getMessage());
+            e.printStackTrace();
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
         }
     }
@@ -57,9 +62,23 @@ public class ProjectController {
     // 프로젝트 삭제
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteProject(@PathVariable Long id) {
-        boolean deleted = projectService.deleteProject(id);
-        return deleted ? ResponseEntity.noContent().build() 
-                      : ResponseEntity.notFound().build();
+        try {
+            System.out.println("=== 프로젝트 삭제 요청 ===");
+            System.out.println("프로젝트 ID: " + id);
+            
+            boolean deleted = projectService.deleteProject(id);
+            if (deleted) {
+                System.out.println("프로젝트 삭제 완료: " + id);
+                return ResponseEntity.noContent().build();
+            } else {
+                System.out.println("프로젝트를 찾을 수 없음: " + id);
+                return ResponseEntity.notFound().build();
+            }
+        } catch (Exception e) {
+            System.err.println("프로젝트 삭제 실패: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
     }
     
     // 상태별 프로젝트 조회
@@ -130,9 +149,17 @@ public class ProjectController {
             @RequestBody List<Long> userIds
     ) {
         try {
+            System.out.println("=== 프로젝트 멤버 일괄 추가 요청 ===");
+            System.out.println("프로젝트 ID: " + projectId);
+            System.out.println("추가할 사용자 ID 목록: " + userIds);
+            System.out.println("사용자 수: " + userIds.size());
+            
             List<ProjectMemberDto> members = projectService.addProjectMembersBulk(projectId, userIds);
+            System.out.println("멤버 추가 성공, 추가된 멤버 수: " + members.size());
             return ResponseEntity.status(HttpStatus.CREATED).body(members);
         } catch (RuntimeException e) {
+            System.err.println("멤버 추가 실패: " + e.getMessage());
+            e.printStackTrace();
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
         }
     }

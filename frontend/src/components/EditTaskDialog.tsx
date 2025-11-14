@@ -43,11 +43,9 @@ export default function EditTaskDialog({
     priority: 'medium',
     assigneeIds: [] as string[],
     startDate: '',
-    dueDate: '',
-    labels: [] as string[]
+    dueDate: ''
   });
   
-  const [newLabel, setNewLabel] = useState('');
   const [memberSearchQuery, setMemberSearchQuery] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [teamMembers, setTeamMembers] = useState<any[]>([]);
@@ -73,11 +71,10 @@ export default function EditTaskDialog({
         priority: initialData.priority?.toLowerCase() || 'medium',
         assigneeIds: assigneeIds,
         startDate: initialData.startDate ? initialData.startDate.split('T')[0] : '',
-        dueDate: initialData.dueDate ? initialData.dueDate.split('T')[0] : '',
-        labels: []
+        dueDate: initialData.dueDate ? initialData.dueDate.split('T')[0] : ''
       });
     }
-  }, [open, initialData]);
+  }, [open, initialData.title, initialData.description, initialData.status, initialData.priority, initialData.assigneeId, initialData.startDate, initialData.dueDate]);
 
   const loadTeamMembers = async () => {
     try {
@@ -155,23 +152,6 @@ export default function EditTaskDialog({
     } finally {
       setIsSubmitting(false);
     }
-  };
-
-  const addLabel = () => {
-    if (newLabel.trim() && !formData.labels.includes(newLabel.trim())) {
-      setFormData({
-        ...formData,
-        labels: [...formData.labels, newLabel.trim()]
-      });
-      setNewLabel('');
-    }
-  };
-
-  const removeLabel = (labelToRemove: string) => {
-    setFormData({
-      ...formData,
-      labels: formData.labels.filter(label => label !== labelToRemove)
-    });
   };
 
   const handleAssigneeToggle = (userId: string) => {
@@ -309,13 +289,15 @@ export default function EditTaskDialog({
                         return (
                           <div
                             key={member.userId}
-                            onClick={() => handleAssigneeToggle(member.userId.toString())}
                             className={`flex items-center justify-between p-2 rounded cursor-pointer transition-colors ${
                               isSelected ? 'bg-blue-50 border border-blue-200' : 'hover:bg-gray-50'
                             }`}
                           >
                             <div className="flex items-center gap-2 flex-1">
-                              <Checkbox checked={isSelected} />
+                              <Checkbox 
+                                checked={isSelected}
+                                onCheckedChange={() => handleAssigneeToggle(member.userId.toString())}
+                              />
                               <Avatar className="w-6 h-6">
                                 <AvatarFallback className="bg-blue-100 text-blue-600 text-xs">
                                   {(member.userFullName || member.username || 'U').charAt(0)}
@@ -410,39 +392,6 @@ export default function EditTaskDialog({
                 onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })}
                 className="mt-1"
               />
-            </div>
-          </div>
-
-          {/* Labels */}
-          <div>
-            <Label>라벨</Label>
-            <div className="mt-2 space-y-3">
-              {formData.labels.length > 0 && (
-                <div className="flex flex-wrap gap-2">
-                  {formData.labels.map(label => (
-                    <Badge key={label} variant="outline" className="flex items-center gap-1">
-                      {label}
-                      <X 
-                        className="w-3 h-3 cursor-pointer hover:text-red-600" 
-                        onClick={() => removeLabel(label)}
-                      />
-                    </Badge>
-                  ))}
-                </div>
-              )}
-              
-              <div className="flex gap-2">
-                <Input
-                  value={newLabel}
-                  onChange={(e) => setNewLabel(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addLabel())}
-                  placeholder="라벨 입력 후 Enter"
-                  className="flex-1"
-                />
-                <Button type="button" onClick={addLabel} variant="outline" size="sm">
-                  <Plus className="w-4 h-4" />
-                </Button>
-              </div>
             </div>
           </div>
 
