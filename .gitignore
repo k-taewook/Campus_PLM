@@ -92,3 +92,5 @@ coverage/
 backend/build/classes/java/main/com/plm/api/project/controller/ProjectController.class
 /backend/build
 /backend/.gradle
+/backend/.gradle
+/backend/build
