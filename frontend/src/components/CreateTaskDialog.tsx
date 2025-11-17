@@ -10,6 +10,7 @@ import { Badge } from './ui/badge';
 import { Avatar, AvatarFallback } from './ui/avatar';
 import { Checkbox } from './ui/checkbox';
 import { useProjects } from '../contexts/ProjectContext';
+import { useAuth } from '../contexts/AuthContext';
 import api, { plmApi } from '../services/api';
 
 interface CreateTaskDialogProps {
@@ -21,6 +22,7 @@ interface CreateTaskDialogProps {
 
 export default function CreateTaskDialog({ open, onOpenChange, projectId, onTaskCreated }: CreateTaskDialogProps) {
   const { users, currentUser } = useProjects();
+  const { user } = useAuth();
   
   const [formData, setFormData] = useState({
     title: '',
@@ -71,6 +73,11 @@ export default function CreateTaskDialog({ open, onOpenChange, projectId, onTask
     e.preventDefault();
     
     if (!formData.title.trim() || !currentUser || isSubmitting) return;
+    
+    if (!user) {
+      alert('로그인이 필요합니다.');
+      return;
+    }
 
     try {
       setIsSubmitting(true);
@@ -106,7 +113,7 @@ export default function CreateTaskDialog({ open, onOpenChange, projectId, onTask
 
       console.log('태스크 생성 요청:', taskData);
 
-      await api.post(`/projects/${projectId}/tasks`, taskData);
+      await api.post(`/projects/${projectId}/tasks?userId=${user.id}`, taskData);
 
       // Reset form
       setFormData({

@@ -28,6 +28,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from './ui/dropdown-menu';
 import { useProjectApi } from '../contexts/ProjectApiContext';
+import { useAuth } from '../contexts/AuthContext';
 import { Project, Task } from '../services/api';
 
 interface ProjectApiDashboardProps {
@@ -43,6 +44,8 @@ export default function ProjectApiDashboard({ onProjectSelect, onCreateProject }
     error,
     getProjectProgress 
   } = useProjectApi();
+  
+  const { user, isAdmin, canModifyTask } = useAuth();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -71,20 +74,43 @@ export default function ProjectApiDashboard({ onProjectSelect, onCreateProject }
     }
   };
 
-  // 필터링된 프로젝트 목록
+  // 필터링된 프로젝트 목록 (권한에 따라 필터링)
   const filteredProjects = projects.filter(project => {
     const matchesSearch = project.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
                          project.description?.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesStatus = statusFilter === 'all' || project.status === statusFilter;
-    return matchesSearch && matchesStatus;
+    
+    // ADMIN이 아닌 경우 자신이 속한 프로젝트만 표시
+    let hasAccess = true;
+    if (!isAdmin() && user) {
+      // 프로젝트 멤버 API 호출이 필요하지만, 임시로 managerId 체크
+      hasAccess = project.managerId ? project.managerId === user.id.toString() : false;
+      // TODO: 프로젝트 멤버 API를 통해 실제 멤버십 확인
+    }
+    
+    return matchesSearch && matchesStatus && hasAccess;
   });
 
-  // 통계 계산
-  const totalProjects = projects.length;
-  const activeProjects = projects.filter(p => p.status === 'ACTIVE').length;
-  const completedProjects = projects.filter(p => p.status === 'COMPLETED').length;
-  const totalTasks = tasks.length;
-  const completedTasks = tasks.filter(t => t.status === 'DONE').length;
+  // 통계 계산 (권한에 따라 필터링된 프로젝트 기준)
+  const totalProjects = filteredProjects.length;
+  const activeProjects = filteredProjects.filter(p => p.status === 'ACTIVE').length;
+  const completedProjects = filteredProjects.filter(p => p.status === 'COMPLETED').length;
+  
+  // 태스크도 권한에 따라 필터링
+  const accessibleTasks = tasks.filter(task => {
+    const taskProject = projects.find(p => p.id === task.projectId);
+    if (!taskProject) return false;
+    
+    if (isAdmin()) return true;
+    if (!user) return false;
+    
+    // 자신이 속한 프로젝트의 태스크만
+    return taskProject.managerId ? taskProject.managerId === user.id.toString() : false;
+    // TODO: 프로젝트 멤버 API를 통해 실제 멤버십 확인
+  });
+  
+  const totalTasks = accessibleTasks.length;
+  const completedTasks = accessibleTasks.filter(t => t.status === 'DONE').length;
 
   // 최근 업데이트된 프로젝트들
   const recentProjects = [...projects]
@@ -141,10 +167,12 @@ export default function ProjectApiDashboard({ onProjectSelect, onCreateProject }
           <h1 className="text-3xl font-bold text-gray-900">프로젝트 대시보드</h1>
           <p className="text-gray-600">진행 중인 프로젝트를 관리하고 모니터링하세요</p>
         </div>
-        <Button onClick={onCreateProject} className="bg-blue-600 hover:bg-blue-700">
-          <Plus className="h-4 w-4 mr-2" />
-          새 프로젝트
-        </Button>
+        {(isAdmin() || user?.role === 'LEADER') && (
+          <Button onClick={onCreateProject} className="bg-blue-600 hover:bg-blue-700">
+            <Plus className="h-4 w-4 mr-2" />
+            새 프로젝트
+          </Button>
+        )}
       </div>
 
       {/* 통계 카드들 */}
@@ -254,27 +282,29 @@ export default function ProjectApiDashboard({ onProjectSelect, onCreateProject }
                           {project.description || '설명이 없습니다'}
                         </CardDescription>
                       </div>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="sm" onClick={(e) => e.stopPropagation()}>
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem>
-                            <Edit className="h-4 w-4 mr-2" />
-                            수정
-                          </DropdownMenuItem>
-                          <DropdownMenuItem>
-                            <Settings className="h-4 w-4 mr-2" />
-                            설정
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem className="text-red-600">
-                            삭제
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                      {project.managerId && canModifyTask(project.managerId.toString()) && (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="sm" onClick={(e) => e.stopPropagation()}>
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem>
+                              <Edit className="h-4 w-4 mr-2" />
+                              수정
+                            </DropdownMenuItem>
+                            <DropdownMenuItem>
+                              <Settings className="h-4 w-4 mr-2" />
+                              설정
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem className="text-red-600">
+                              삭제
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      )}
                     </div>
                   </CardHeader>
                   <CardContent>

@@ -47,4 +47,11 @@ public interface TeamMemberRepository extends JpaRepository<TeamMember, Long> {
     
     // 팀의 모든 멤버 삭제
     void deleteByTeamId(Long teamId);
+    
+    // 사용자의 모든 팀 멤버십 삭제
+    void deleteByUserId(Long userId);
+    
+    // 사용자의 팀 멤버십 수 조회
+    @Query("SELECT COUNT(tm) FROM TeamMember tm WHERE tm.user.id = :userId")
+    Long countByUserId(Long userId);
 }

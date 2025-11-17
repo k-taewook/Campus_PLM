@@ -36,4 +36,11 @@ public interface ProjectMemberRepository extends JpaRepository<ProjectMember, Lo
     
     // 프로젝트의 모든 멤버 삭제
     void deleteByProjectId(Long projectId);
+    
+    // 사용자의 모든 프로젝트 멤버십 삭제
+    void deleteByUserId(Long userId);
+    
+    // 사용자의 프로젝트 멤버십 수 조회
+    @Query("SELECT COUNT(pm) FROM ProjectMember pm WHERE pm.user.id = :userId")
+    Long countByUserId(Long userId);
 }

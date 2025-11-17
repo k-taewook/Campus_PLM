@@ -199,12 +199,42 @@ export default function LoginScreen() {
           </div>
 
           {/* Test Account Info */}
-          <div className="mt-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
-            <p className="text-xs font-medium text-gray-700 mb-2">테스트 계정:</p>
-            <div className="text-xs text-gray-600 space-y-1">
-              <p>이메일: admin@plm.com</p>
-              <p>비밀번호: admin1234</p>
+          <div className="mt-6 p-4 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg border border-blue-200">
+            <p className="text-sm font-semibold text-gray-800 mb-3 flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 text-blue-600" />
+              테스트 계정 정보
+            </p>
+            <div className="space-y-3">
+              {/* 관리자 계정 */}
+              <div className="bg-white p-3 rounded-md border border-blue-100">
+                <p className="text-xs font-semibold text-blue-700 mb-1">👑 관리자 (ADMIN)</p>
+                <div className="text-xs text-gray-600 space-y-0.5">
+                  <p className="font-mono">📧 admin@plm.com</p>
+                  <p className="font-mono">🔑 admin1234</p>
+                </div>
+              </div>
+              
+              {/* 리더 계정 */}
+              <div className="bg-white p-3 rounded-md border border-green-100">
+                <p className="text-xs font-semibold text-green-700 mb-1">⭐ 리더 (LEADER)</p>
+                <div className="text-xs text-gray-600 space-y-0.5">
+                  <p className="font-mono">📧 leader1@plm.com</p>
+                  <p className="font-mono">🔑 leader1234</p>
+                </div>
+              </div>
+              
+              {/* 멤버 계정 */}
+              <div className="bg-white p-3 rounded-md border border-purple-100">
+                <p className="text-xs font-semibold text-purple-700 mb-1">👤 멤버 (MEMBER)</p>
+                <div className="text-xs text-gray-600 space-y-0.5">
+                  <p className="font-mono">📧 member1@plm.com</p>
+                  <p className="font-mono">🔑 member1234</p>
+                </div>
+              </div>
             </div>
+            <p className="text-xs text-gray-500 mt-3 italic">
+              💡 각 권한별로 다른 기능에 접근할 수 있습니다
+            </p>
           </div>
         </div>
 

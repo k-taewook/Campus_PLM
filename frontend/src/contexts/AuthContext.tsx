@@ -6,7 +6,7 @@ interface User {
   email: string;
   username: string;
   fullName: string;
-  role: 'ADMIN' | 'MANAGER' | 'DEVELOPER' | 'DESIGNER' | 'TESTER' | 'VIEWER';
+  role: 'ADMIN' | 'LEADER' | 'MEMBER';
   status: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED' | 'DELETED';
   profileImageUrl?: string;
   department?: string;
@@ -20,6 +20,11 @@ interface AuthContextType {
   logout: () => void;
   isAuthenticated: boolean;
   isLoading: boolean;
+  isAdmin: () => boolean;
+  isLeader: () => boolean;
+  isMember: () => boolean;
+  canManageProject: (projectManagerId: string) => boolean;
+  canModifyTask: (projectManagerId: string) => boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -43,6 +48,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
     setIsLoading(false);
   }, []);
+  
+  // 권한 체크 함수들
+  const isAdmin = () => user?.role === 'ADMIN';
+  const isLeader = () => user?.role === 'LEADER';
+  const isMember = () => user?.role === 'MEMBER';
+  
+  // 프로젝트 관리 권한 체크 (ADMIN 또는 해당 프로젝트의 리더)
+  const canManageProject = (projectManagerId: string) => {
+    if (!user) return false;
+    if (user.role === 'ADMIN') return true;
+    return user.id.toString() === projectManagerId;
+  };
+  
+  // 태스크 수정 권한 체크 (ADMIN 또는 해당 프로젝트의 리더)
+  const canModifyTask = (projectManagerId: string) => {
+    return canManageProject(projectManagerId);
+  };
 
   const login = async (email: string, password: string) => {
     try {
@@ -96,6 +118,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         logout,
         isAuthenticated: !!user,
         isLoading,
+        isAdmin,
+        isLeader,
+        isMember,
+        canManageProject,
+        canModifyTask,
       }}
     >
       {children}

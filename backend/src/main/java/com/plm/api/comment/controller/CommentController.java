@@ -2,6 +2,8 @@ package com.plm.api.comment.controller;
 
 import com.plm.api.comment.dto.CommentDto;
 import com.plm.api.comment.service.CommentService;
+import com.plm.api.common.security.AuthorizationService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -42,6 +44,9 @@ import java.util.List;
 public class CommentController {
     
     private final CommentService commentService;
+    
+    @Autowired
+    private AuthorizationService authorizationService;
     
     public CommentController(CommentService commentService) {
         this.commentService = commentService;
@@ -92,16 +97,37 @@ public class CommentController {
         return ResponseEntity.status(HttpStatus.CREATED).body(createdComment);
     }
     
-    // 댓글 수정
+    // 댓글 수정 (작성자, 프로젝트 리더, ADMIN만 가능)
     @PutMapping("/{id}")
-    public ResponseEntity<CommentDto> updateComment(@PathVariable Long id, @RequestBody CommentDto commentDto) {
+    public ResponseEntity<?> updateComment(
+            @PathVariable Long id, 
+            @RequestBody CommentDto commentDto,
+            @RequestParam Long userId) {
+        // 댓글 정보 조회
+        CommentDto existingComment = commentService.getCommentById(id);
+        
+        // 권한 체크
+        if (!authorizationService.canModifyComment(userId, existingComment.getAuthorId(), existingComment.getProjectId())) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body("댓글을 수정할 권한이 없습니다.");
+        }
+        
         CommentDto updatedComment = commentService.updateComment(id, commentDto);
         return ResponseEntity.ok(updatedComment);
     }
     
-    // 댓글 삭제
+    // 댓글 삭제 (작성자, 프로젝트 리더, ADMIN만 가능)
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteComment(@PathVariable Long id) {
+    public ResponseEntity<?> deleteComment(@PathVariable Long id, @RequestParam Long userId) {
+        // 댓글 정보 조회
+        CommentDto existingComment = commentService.getCommentById(id);
+        
+        // 권한 체크
+        if (!authorizationService.canModifyComment(userId, existingComment.getAuthorId(), existingComment.getProjectId())) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body("댓글을 삭제할 권한이 없습니다.");
+        }
+        
         commentService.deleteComment(id);
         return ResponseEntity.noContent().build();
     }
@@ -111,5 +137,33 @@ public class CommentController {
     public ResponseEntity<List<CommentDto>> getUserComments(@PathVariable Long authorId) {
         List<CommentDto> comments = commentService.getUserComments(authorId);
         return ResponseEntity.ok(comments);
+    }
+    
+    // 프로젝트 최상위 댓글 조회 (대댓글 제외)
+    @GetMapping("/project/{projectId}/top-level")
+    public ResponseEntity<List<CommentDto>> getTopLevelProjectComments(@PathVariable Long projectId) {
+        List<CommentDto> comments = commentService.getTopLevelProjectComments(projectId);
+        return ResponseEntity.ok(comments);
+    }
+    
+    // 태스크 최상위 댓글 조회 (대댓글 제외)
+    @GetMapping("/task/{taskId}/top-level")
+    public ResponseEntity<List<CommentDto>> getTopLevelTaskComments(@PathVariable Long taskId) {
+        List<CommentDto> comments = commentService.getTopLevelTaskComments(taskId);
+        return ResponseEntity.ok(comments);
+    }
+    
+    // 프로젝트 댓글 수 조회
+    @GetMapping("/project/{projectId}/count")
+    public ResponseEntity<Long> getProjectCommentCount(@PathVariable Long projectId) {
+        Long count = commentService.getProjectCommentCount(projectId);
+        return ResponseEntity.ok(count);
+    }
+    
+    // 태스크 댓글 수 조회
+    @GetMapping("/task/{taskId}/count")
+    public ResponseEntity<Long> getTaskCommentCount(@PathVariable Long taskId) {
+        Long count = commentService.getTaskCommentCount(taskId);
+        return ResponseEntity.ok(count);
     }
 }

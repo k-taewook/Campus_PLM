@@ -38,7 +38,7 @@ public class User {
     
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private UserRole role = UserRole.VIEWER;
+    private UserRole role = UserRole.MEMBER;
     
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)

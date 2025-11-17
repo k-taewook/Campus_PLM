@@ -333,10 +333,58 @@ export default function AdminUserManagement() {
 
   const handleDeleteUser = async (userId: string) => {
     try {
-      await plmApi.deleteUser(Number(userId));
+      // 1. 삭제 전 정보 조회
+      const deletionInfo = await plmApi.getUserDeletionInfo(Number(userId));
+      
+      // 2. 팀/프로젝트 소속 여부 확인
+      const hasTeams = deletionInfo.teamCount > 0;
+      const hasProjects = deletionInfo.projectCount > 0;
+      
+      if (hasTeams || hasProjects) {
+        // 경고 메시지 생성
+        let warningMessage = `사용자 "${deletionInfo.userName}"님은 다음에 소속되어 있습니다:\n\n`;
+        
+        if (hasTeams) {
+          warningMessage += `📌 팀 (${deletionInfo.teamCount}개):\n`;
+          deletionInfo.teams.forEach((teamName, index) => {
+            warningMessage += `  ${index + 1}. ${teamName}\n`;
+          });
+          warningMessage += '\n';
+        }
+        
+        if (hasProjects) {
+          warningMessage += `📌 프로젝트 (${deletionInfo.projectCount}개):\n`;
+          deletionInfo.projects.forEach((projectName, index) => {
+            warningMessage += `  ${index + 1}. ${projectName}\n`;
+          });
+          warningMessage += '\n';
+        }
+        
+        warningMessage += '삭제하시면 해당 사용자가 모든 팀과 프로젝트에서 자동으로 제거됩니다.\n\n그래도 삭제하시겠습니까?';
+        
+        // 사용자 확인
+        const confirmed = window.confirm(warningMessage);
+        
+        if (!confirmed) {
+          return; // 취소
+        }
+        
+        // 3. 강제 삭제 (팀/프로젝트에서 자동 제거)
+        await plmApi.forceDeleteUser(Number(userId));
+      } else {
+        // 소속 없음 - 일반 삭제
+        const confirmed = window.confirm(`사용자 "${deletionInfo.userName}"님을 삭제하시겠습니까?`);
+        if (!confirmed) return;
+        
+        await plmApi.deleteUser(Number(userId));
+      }
+      
+      // 4. 사용자 목록 새로고침
       await reloadUsers();
+      alert('사용자가 성공적으로 삭제되었습니다.');
     } catch (e) {
       console.error('사용자 삭제 실패', e);
+      alert('사용자 삭제에 실패했습니다.');
     }
   };
 

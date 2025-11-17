@@ -97,6 +97,28 @@ public class UserController {
         }
     }
     
+    // 사용자 삭제 전 정보 조회 (팀/프로젝트 소속 확인)
+    @GetMapping("/{id}/deletion-info")
+    public ResponseEntity<?> getUserDeletionInfo(@PathVariable Long id) {
+        try {
+            java.util.Map<String, Object> info = userService.getUserDeletionInfo(id);
+            return ResponseEntity.ok(info);
+        } catch (RuntimeException e) {
+            return ResponseEntity.notFound().build();
+        }
+    }
+    
+    // 사용자 강제 삭제 (팀/프로젝트에서 자동 제거)
+    @DeleteMapping("/{id}/force")
+    public ResponseEntity<?> forceDeleteUser(@PathVariable Long id) {
+        try {
+            userService.forceDeleteUser(id);
+            return ResponseEntity.noContent().build();
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+    
     // 부서별 사용자 조회
     @GetMapping("/department/{department}")
     public ResponseEntity<List<UserDto>> getUsersByDepartment(@PathVariable String department) {

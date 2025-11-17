@@ -105,6 +105,24 @@ export const plmApi = {
   deleteUser: async (id: number): Promise<void> => {
     await api.delete(`/users/${id}`);
   },
+  
+  // 사용자 삭제 전 정보 조회 (팀/프로젝트 소속 확인)
+  getUserDeletionInfo: async (id: number): Promise<{
+    userId: number;
+    userName: string;
+    teams: string[];
+    projects: string[];
+    teamCount: number;
+    projectCount: number;
+  }> => {
+    const response = await api.get(`/users/${id}/deletion-info`);
+    return response.data;
+  },
+  
+  // 사용자 강제 삭제 (팀/프로젝트에서 자동 제거)
+  forceDeleteUser: async (id: number): Promise<void> => {
+    await api.delete(`/users/${id}/force`);
+  },
   // 대시보드 요약 정보 가져오기
   getDashboardSummary: async () => {
     const response = await api.get('/dashboard/summary');
@@ -363,8 +381,8 @@ export async function uploadFile(params: {
   return response.data;
 }
 
-export async function deleteFileById(id: number): Promise<void> {
-  await api.delete(`/files/${id}`);
+export async function deleteFileById(id: number, userId: number): Promise<void> {
+  await api.delete(`/files/${id}?userId=${userId}`);
 }
 
 export async function updateFileOriginalName(id: number, originalName: string): Promise<FileDto> {

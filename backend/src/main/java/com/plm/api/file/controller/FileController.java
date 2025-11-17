@@ -1,7 +1,9 @@
 package com.plm.api.file.controller;
 
+import com.plm.api.common.security.AuthorizationService;
 import com.plm.api.file.dto.FileDto;
 import com.plm.api.file.service.FileService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.UrlResource;
 import org.springframework.http.HttpHeaders;
@@ -54,6 +56,9 @@ import java.util.Map;
 public class FileController {
     
     private final FileService fileService;
+    
+    @Autowired
+    private AuthorizationService authorizationService;
     
     public FileController(FileService fileService) {
         this.fileService = fileService;
@@ -129,7 +134,13 @@ public class FileController {
     
     // 파일 삭제
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteFile(@PathVariable Long id) {
+    public ResponseEntity<?> deleteFile(@PathVariable Long id, @RequestParam Long userId) {
+        // 권한 확인
+        if (!authorizationService.canDeleteFile(userId, id)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body("파일을 삭제할 권한이 없습니다.");
+        }
+        
         try {
             fileService.deleteFile(id);
             return ResponseEntity.noContent().build();
@@ -140,13 +151,24 @@ public class FileController {
 
     // 파일 일괄 삭제
     @DeleteMapping("/bulk")
-    public ResponseEntity<Map<String, Object>> deleteFiles(@RequestBody List<Long> fileIds) {
+    public ResponseEntity<?> deleteFiles(@RequestBody Map<String, Object> request) {
         try {
+            @SuppressWarnings("unchecked")
+            List<Long> fileIds = (List<Long>) request.get("fileIds");
+            Long userId = ((Number) request.get("userId")).longValue();
+            
             int successCount = 0;
             int failureCount = 0;
+            int noPermissionCount = 0;
             
             for (Long fileId : fileIds) {
                 try {
+                    // 권한 확인
+                    if (!authorizationService.canDeleteFile(userId, fileId)) {
+                        noPermissionCount++;
+                        continue;
+                    }
+                    
                     fileService.deleteFile(fileId);
                     successCount++;
                 } catch (Exception e) {
@@ -158,7 +180,8 @@ public class FileController {
             Map<String, Object> response = Map.of(
                 "totalRequested", fileIds.size(),
                 "successCount", successCount,
-                "failureCount", failureCount
+                "failureCount", failureCount,
+                "noPermissionCount", noPermissionCount
             );
             
             return ResponseEntity.ok(response);

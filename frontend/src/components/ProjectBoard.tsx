@@ -33,6 +33,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
 import { Checkbox } from './ui/checkbox';
 import { useProjects, type Project, type Task } from '../contexts/ProjectContext';
+import { useAuth } from '../contexts/AuthContext';
 import TaskDetail from './TaskDetail';
 import CreateTaskDialog from './CreateTaskDialog';
 import ProjectSettings from './ProjectSettings';
@@ -55,6 +56,8 @@ export default function ProjectBoard({ projectId, onBack }: ProjectBoardProps) {
     canEditTask,
     canManageSettings
   } = useProjects();
+
+  const { canModifyTask } = useAuth();
 
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [showCreateTask, setShowCreateTask] = useState(false);
@@ -106,6 +109,7 @@ export default function ProjectBoard({ projectId, onBack }: ProjectBoardProps) {
         status: projectRes.data.status.toLowerCase().replace('_', '-'),
         key: projectRes.data.projectKey || 'PROJ',
         leadId: projectRes.data.managerId?.toString() || '',
+        managerId: projectRes.data.managerId?.toString() || '', // managerId 속성 추가
         members: projectMembers
       });
       
@@ -278,6 +282,9 @@ export default function ProjectBoard({ projectId, onBack }: ProjectBoardProps) {
     const reporter = users.find(u => u.id === task.reporterId);
     const daysUntil = task.dueDate ? getDaysUntilDeadline(task.dueDate) : null;
     const canEdit = canEditTask(task.id);
+    
+    // 태스크 수정 권한 체크 (project의 managerId 사용)
+    const hasModifyPermission = project && project.managerId ? canModifyTask(project.managerId) : false;
 
     return (
       <Card
@@ -291,30 +298,32 @@ export default function ProjectBoard({ projectId, onBack }: ProjectBoardProps) {
             {/* Header */}
             <div className="flex items-start justify-between">
               <h4 className="font-medium text-sm line-clamp-2">{task.title}</h4>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
-                    <MoreHorizontal className="w-3 h-3" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={() => setSelectedTaskId(task.id)}>
-                    <Edit className="w-4 h-4 mr-2" />
-                    상세보기
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem 
-                    className="text-red-600"
-                    onClick={(e: React.MouseEvent) => {
-                      e.stopPropagation();
-                      setTaskToDelete(task.id);
-                    }}
-                  >
-                    <Trash2 className="w-4 h-4 mr-2" />
-                    삭제
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+              {hasModifyPermission && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
+                      <MoreHorizontal className="w-3 h-3" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => setSelectedTaskId(task.id)}>
+                      <Edit className="w-4 h-4 mr-2" />
+                      상세보기
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem 
+                      className="text-red-600"
+                      onClick={(e: React.MouseEvent) => {
+                        e.stopPropagation();
+                        setTaskToDelete(task.id);
+                      }}
+                    >
+                      <Trash2 className="w-4 h-4 mr-2" />
+                      삭제
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
             </div>
 
             {/* Priority and Labels */}
@@ -486,18 +495,24 @@ export default function ProjectBoard({ projectId, onBack }: ProjectBoardProps) {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <Button onClick={() => setShowCreateTask(true)}>
-              <Plus className="w-4 h-4 mr-2" />
-              태스크 추가
-            </Button>
-            <Button variant="outline" onClick={() => setShowEditProject(true)}>
-              <Edit className="w-4 h-4 mr-2" />
-              프로젝트 수정
-            </Button>
-            <Button variant="outline" onClick={() => setShowDeleteConfirm(true)} className="text-red-600 hover:text-red-700">
-              <Trash2 className="w-4 h-4 mr-2" />
-              프로젝트 삭제
-            </Button>
+            {project && project.managerId && canModifyTask(project.managerId) && (
+              <Button onClick={() => setShowCreateTask(true)}>
+                <Plus className="w-4 h-4 mr-2" />
+                태스크 추가
+              </Button>
+            )}
+            {project && project.managerId && canModifyTask(project.managerId) && (
+              <>
+                <Button variant="outline" onClick={() => setShowEditProject(true)}>
+                  <Edit className="w-4 h-4 mr-2" />
+                  프로젝트 수정
+                </Button>
+                <Button variant="outline" onClick={() => setShowDeleteConfirm(true)} className="text-red-600 hover:text-red-700">
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  프로젝트 삭제
+                </Button>
+              </>
+            )}
             {canManageSettings(projectId) && (
               <Button variant="outline" onClick={() => setShowSettings(true)}>
                 <Settings className="w-4 h-4 mr-2" />

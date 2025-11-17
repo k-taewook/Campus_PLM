@@ -142,7 +142,7 @@ interface ProjectContextType {
   logTime: (taskId: string, hours: number, description?: string) => void;
   
   // Comment functions
-  addComment: (targetType: 'project' | 'task', targetId: string, content: string, attachments?: Attachment[]) => void;
+  addComment: (targetType: 'project' | 'task', targetId: string, content: string, attachments?: Attachment[]) => Promise<void>;
   updateComment: (commentId: string, content: string) => void;
   deleteComment: (commentId: string) => void;
   
@@ -1078,30 +1078,52 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   };
 
   // Comment functions
-  const addComment = (targetType: 'project' | 'task', targetId: string, content: string, attachments: Attachment[] = []) => {
+  const addComment = async (targetType: 'project' | 'task', targetId: string, content: string, attachments: Attachment[] = []) => {
     if (!currentUser) return;
     
-    const newComment: Comment = {
-      id: `comment-${Date.now()}`,
-      userId: currentUser.id,
-      userName: currentUser.name,
-      content,
-      createdAt: new Date().toISOString(),
-      attachments
-    };
+    try {
+      // 백엔드 API 호출 (baseURL에 이미 /api가 포함되어 있으므로 /comments만 사용)
+      const response = await api.post('/comments', {
+        content,
+        type: targetType === 'task' ? 'TASK' : 'PROJECT',
+        taskId: targetType === 'task' ? parseInt(targetId) : null,
+        projectId: targetType === 'project' ? parseInt(targetId) : null,
+        parentCommentId: null
+      }, {
+        params: {
+          authorId: parseInt(currentUser.id)
+        }
+      });
 
-    if (targetType === 'task') {
-      setProjects(prev => prev.map(project => ({
-        ...project,
-        tasks: project.tasks.map(task => 
-          task.id === targetId 
-            ? { ...task, comments: [...task.comments, newComment] }
-            : task
-        )
-      })));
+      const createdComment = response.data;
+      
+      // 로컬 상태 업데이트
+      const newComment: Comment = {
+        id: createdComment.id.toString(),
+        userId: createdComment.authorId.toString(),
+        userName: createdComment.authorUsername,
+        content: createdComment.content,
+        createdAt: createdComment.createdAt,
+        attachments
+      };
+
+      if (targetType === 'task') {
+        setProjects(prev => prev.map(project => ({
+          ...project,
+          tasks: project.tasks.map(task => 
+            task.id === targetId 
+              ? { ...task, comments: [...task.comments, newComment] }
+              : task
+          )
+        })));
+      }
+      
+      addActivity('comment', newComment.id, 'commented', '댓글을 남겼습니다');
+      console.log('댓글 추가 성공:', createdComment);
+    } catch (error) {
+      console.error('댓글 추가 실패:', error);
+      alert('댓글 추가에 실패했습니다.');
     }
-    
-    addActivity('comment', newComment.id, 'commented', '댓글을 남겼습니다');
   };
 
   const updateComment = (commentId: string, content: string) => {

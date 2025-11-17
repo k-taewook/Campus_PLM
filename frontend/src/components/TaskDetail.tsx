@@ -38,6 +38,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { useProjects, type Task, type Attachment } from '../contexts/ProjectContext';
 import api, { getTaskFiles, uploadFile as uploadFileApi, deleteFileById, updateFileOriginalName, type FileDto } from '../services/api';
 import EditTaskDialog from './EditTaskDialog';
+import { useAuth } from '../contexts/AuthContext';
 
 interface TaskDetailProps {
   taskId: string;
@@ -55,6 +56,8 @@ export default function TaskDetail({ taskId, onBack, onTaskUpdated }: TaskDetail
     canEditTask
   } = useProjects();
 
+  const { user, canModifyTask, isAdmin, isLeader } = useAuth();
+
   const [task, setTask] = useState<any>(null);
   const [project, setProject] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -67,7 +70,7 @@ export default function TaskDetail({ taskId, onBack, onTaskUpdated }: TaskDetail
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   
   // 체크리스트 관련 상태
-  const [checklist, setChecklist] = useState<Array<{ id: string; text: string; completed: boolean }>>([]);
+  const [checklist, setChecklist] = useState<Array<{ id: string; text: string; completed: boolean; creatorId?: string }>>([]);
   const [newChecklistItem, setNewChecklistItem] = useState('');
   const [showChecklistForm, setShowChecklistForm] = useState(false);
   
@@ -168,9 +171,11 @@ export default function TaskDetail({ taskId, onBack, onTaskUpdated }: TaskDetail
           
           // 백엔드에 진행률 업데이트
           try {
-            await api.patch(`/tasks/${taskId}`, { progress: calculatedProgress });
-            // 로컬 상태도 업데이트
-            setTask((prev: any) => prev ? { ...prev, progress: calculatedProgress } : prev);
+            if (user) {
+              await api.patch(`/tasks/${taskId}?userId=${user.id}`, { progress: calculatedProgress });
+              // 로컬 상태도 업데이트
+              setTask((prev: any) => prev ? { ...prev, progress: calculatedProgress } : prev);
+            }
           } catch (error) {
             console.error('진행률 자동 업데이트 실패:', error);
           }
@@ -184,7 +189,8 @@ export default function TaskDetail({ taskId, onBack, onTaskUpdated }: TaskDetail
           setProject({
             id: projectResponse.data.id.toString(),
             name: projectResponse.data.name,
-            key: projectResponse.data.projectKey || 'PROJ'
+            key: projectResponse.data.projectKey || 'PROJ',
+            managerId: projectResponse.data.managerId?.toString() || ''
           });
         } catch (error) {
           console.error('프로젝트 로드 실패:', error);
@@ -206,6 +212,25 @@ export default function TaskDetail({ taskId, onBack, onTaskUpdated }: TaskDetail
         setTask((prev: any) => prev ? { ...prev, attachments: mapped } : prev);
       } catch (err) {
         console.error('첨부파일 로드 실패:', err);
+      }
+
+      // 태스크 댓글 목록 로드
+      try {
+        const commentsResponse = await api.get(`/comments/task/${taskId}`);
+        const commentsData = commentsResponse.data;
+        const mappedComments = commentsData.map((c: any) => ({
+          id: c.id.toString(),
+          userId: c.authorId.toString(),
+          userName: c.authorUsername,
+          content: c.content,
+          createdAt: c.createdAt,
+          updatedAt: c.updatedAt,
+          attachments: []
+        }));
+        setTask((prev: any) => prev ? { ...prev, comments: mappedComments } : prev);
+        console.log('댓글 로드 완료:', mappedComments.length, '개');
+      } catch (err) {
+        console.error('댓글 로드 실패:', err);
       }
     } catch (error) {
       console.error('태스크 로드 실패:', error);
@@ -238,7 +263,8 @@ export default function TaskDetail({ taskId, onBack, onTaskUpdated }: TaskDetail
 
   const assignees = users.filter(u => task.assigneeIds.includes(u.id));
   const reporter = users.find(u => u.id === task.reporterId);
-  const canEdit = true; // API 기반 시스템에서는 항상 편집 가능
+  // 권한 체크: ADMIN 또는 프로젝트 관리자만 편집 가능
+  const canEdit = project && project.managerId ? canModifyTask(project.managerId) : false;
 
   const handleEdit = () => {
     setEditData({
@@ -254,6 +280,11 @@ export default function TaskDetail({ taskId, onBack, onTaskUpdated }: TaskDetail
   };
 
   const handleSave = async () => {
+    if (!user) {
+      alert('로그인이 필요합니다.');
+      return;
+    }
+    
     try {
       // API 형식에 맞게 데이터 변환
       const statusMap: Record<string, string> = {
@@ -280,7 +311,7 @@ export default function TaskDetail({ taskId, onBack, onTaskUpdated }: TaskDetail
         updateData.assigneeId = null;
       }
 
-      await api.put(`/tasks/${taskId}`, updateData);
+      await api.put(`/tasks/${taskId}?userId=${user.id}`, updateData);
       
       // 데이터 새로고침
       await loadTaskData();
@@ -305,8 +336,13 @@ export default function TaskDetail({ taskId, onBack, onTaskUpdated }: TaskDetail
   };
 
   const handleDelete = async () => {
+    if (!user) {
+      alert('로그인이 필요합니다.');
+      return;
+    }
+    
     try {
-      await api.delete(`/tasks/${taskId}`);
+      await api.delete(`/tasks/${taskId}?userId=${user.id}`);
       setShowDeleteConfirm(false);
       alert('태스크가 삭제되었습니다.');
       
@@ -316,16 +352,39 @@ export default function TaskDetail({ taskId, onBack, onTaskUpdated }: TaskDetail
       }
       
       onBack(); // 목록으로 돌아가기
-    } catch (error) {
+    } catch (error: any) {
       console.error('태스크 삭제 실패:', error);
-      alert('태스크 삭제에 실패했습니다.');
+      if (error.response?.status === 403) {
+        alert('이 태스크를 삭제할 권한이 없습니다.');
+      } else {
+        alert('태스크 삭제에 실패했습니다.');
+      }
     }
   };
 
-  const handleAddComment = () => {
+  const handleAddComment = async () => {
     if (newComment.trim()) {
-      addComment('task', taskId, newComment.trim());
+      await addComment('task', taskId, newComment.trim());
       setNewComment('');
+      
+      // 댓글 목록 새로고침
+      try {
+        const commentsResponse = await api.get(`/comments/task/${taskId}`);
+        const commentsData = commentsResponse.data;
+        const mappedComments = commentsData.map((c: any) => ({
+          id: c.id.toString(),
+          userId: c.authorId.toString(),
+          userName: c.authorUsername,
+          content: c.content,
+          createdAt: c.createdAt,
+          updatedAt: c.updatedAt,
+          attachments: []
+        }));
+        setTask((prev: any) => prev ? { ...prev, comments: mappedComments } : prev);
+        console.log('댓글 새로고침 완료:', mappedComments.length, '개');
+      } catch (err) {
+        console.error('댓글 새로고침 실패:', err);
+      }
     }
   };
 
@@ -405,13 +464,22 @@ export default function TaskDetail({ taskId, onBack, onTaskUpdated }: TaskDetail
 
   const handleDeleteAttachment = async (attachmentId: string) => {
     if (!confirm('이 첨부파일을 삭제하시겠습니까?')) return;
+    if (!user) {
+      alert('로그인이 필요합니다.');
+      return;
+    }
+    
     try {
-      await deleteFileById(Number(attachmentId));
+      await deleteFileById(Number(attachmentId), user.id);
       await reloadAttachments();
       alert('첨부파일이 삭제되었습니다.');
-    } catch (e) {
+    } catch (e: any) {
       console.error('첨부파일 삭제 실패:', e);
-      alert('첨부파일 삭제에 실패했습니다.');
+      if (e.response?.status === 403) {
+        alert('파일을 삭제할 권한이 없습니다.');
+      } else {
+        alert('첨부파일 삭제에 실패했습니다.');
+      }
     }
   };
 
@@ -419,6 +487,11 @@ export default function TaskDetail({ taskId, onBack, onTaskUpdated }: TaskDetail
   const handleBulkDeleteFiles = async () => {
     if (selectedFileIds.size === 0) {
       alert('삭제할 파일을 선택해주세요.');
+      return;
+    }
+    
+    if (!user) {
+      alert('로그인이 필요합니다.');
       return;
     }
 
@@ -433,17 +506,23 @@ export default function TaskDetail({ taskId, onBack, onTaskUpdated }: TaskDetail
       const fileIdsArray = Array.from(selectedFileIds).map(id => Number(id));
       
       const response = await api.delete('/files/bulk', {
-        data: fileIdsArray
+        data: {
+          fileIds: fileIdsArray,
+          userId: user.id
+        }
       });
       
       setSelectedFileIds(new Set());
       setIsFileEditMode(false);
       await reloadAttachments();
       
-      if (response.data.failureCount > 0) {
-        alert(`${response.data.successCount}개 파일이 삭제되었습니다. (${response.data.failureCount}개 실패)`);
+      const data = response.data;
+      if (data.noPermissionCount > 0) {
+        alert(`${data.successCount}개 파일이 삭제되었습니다. (권한 없음: ${data.noPermissionCount}개, 실패: ${data.failureCount}개)`);
+      } else if (data.failureCount > 0) {
+        alert(`${data.successCount}개 파일이 삭제되었습니다. (${data.failureCount}개 실패)`);
       } else {
-        alert(`${response.data.successCount}개 파일이 삭제되었습니다.`);
+        alert(`${data.successCount}개 파일이 삭제되었습니다.`);
       }
     } catch (err: any) {
       console.error('파일 삭제 실패:', err);
@@ -529,17 +608,26 @@ export default function TaskDetail({ taskId, onBack, onTaskUpdated }: TaskDetail
         progress: progressValue
       };
       
+      if (!user) {
+        alert('로그인이 필요합니다.');
+        return;
+      }
+      
       console.log('상태 변경:', newStatus, '->', backendStatus, '진행률:', progressValue);
-      await api.patch(`/tasks/${taskId}`, updateData);
+      await api.patch(`/tasks/${taskId}?userId=${user.id}`, updateData);
       await loadTaskData();
       
       // 부모 컴포넌트에 업데이트 알림
       if (onTaskUpdated) {
         onTaskUpdated();
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('상태 변경 실패:', error);
-      alert('상태 변경에 실패했습니다.');
+      if (error.response?.status === 403) {
+        alert('이 태스크의 상태를 변경할 권한이 없습니다.');
+      } else {
+        alert('상태 변경에 실패했습니다.');
+      }
     }
   };
 
@@ -563,12 +651,13 @@ export default function TaskDetail({ taskId, onBack, onTaskUpdated }: TaskDetail
 
   // 체크리스트 항목 추가
   const addChecklistItem = () => {
-    if (!newChecklistItem.trim()) return;
+    if (!newChecklistItem.trim() || !user) return;
     
     const newItem = {
       id: Date.now().toString(),
       text: newChecklistItem.trim(),
-      completed: false
+      completed: false,
+      creatorId: user.id.toString()
     };
     
     const updatedChecklist = [...checklist, newItem];
@@ -602,6 +691,11 @@ export default function TaskDetail({ taskId, onBack, onTaskUpdated }: TaskDetail
 
   // 진행률 백엔드에 업데이트 (체크리스트 전달 받음)
   const updateProgressWithChecklist = async (currentChecklist: typeof checklist) => {
+    if (!user) {
+      alert('로그인이 필요합니다.');
+      return;
+    }
+    
     try {
       // 체크리스트 기반 진행률 계산
       let newProgress = 0;
@@ -625,7 +719,7 @@ export default function TaskDetail({ taskId, onBack, onTaskUpdated }: TaskDetail
         진행률: newProgress 
       });
       
-      const response = await api.patch(`/tasks/${taskId}`, {
+      const response = await api.patch(`/tasks/${taskId}?userId=${user.id}`, {
         progress: newProgress
       });
       
@@ -765,41 +859,48 @@ export default function TaskDetail({ taskId, onBack, onTaskUpdated }: TaskDetail
                       <CardTitle className="text-xl">{task.title}</CardTitle>
                     )}
                     <div className="flex items-center gap-2 mt-2">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="outline" size="sm" className={`${getStatusColor(task.status)} border-0`}>
-                            {getStatusIcon(task.status)}
-                            <span className="ml-1">{getStatusLabel(task.status)}</span>
-                            <MoreHorizontal className="w-3 h-3 ml-2" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="start">
-                          <DropdownMenuItem onClick={() => updateStatus('todo')}>
-                            <div className="flex items-center gap-2">
-                              <div className="w-2 h-2 rounded-full bg-gray-500" />
-                              할 일
-                            </div>
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => updateStatus('in-progress')}>
-                            <div className="flex items-center gap-2">
-                              <div className="w-2 h-2 rounded-full bg-blue-500" />
-                              진행 중
-                            </div>
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => updateStatus('in-review')}>
-                            <div className="flex items-center gap-2">
-                              <div className="w-2 h-2 rounded-full bg-purple-500" />
-                              리뷰 중
-                            </div>
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => updateStatus('done')}>
-                            <div className="flex items-center gap-2">
-                              <div className="w-2 h-2 rounded-full bg-green-500" />
-                              완료
-                            </div>
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                      {project && canModifyTask(project.managerId) ? (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="outline" size="sm" className={`${getStatusColor(task.status)} border-0`}>
+                              {getStatusIcon(task.status)}
+                              <span className="ml-1">{getStatusLabel(task.status)}</span>
+                              <MoreHorizontal className="w-3 h-3 ml-2" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="start">
+                            <DropdownMenuItem onClick={() => updateStatus('todo')}>
+                              <div className="flex items-center gap-2">
+                                <div className="w-2 h-2 rounded-full bg-gray-500" />
+                                할 일
+                              </div>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => updateStatus('in-progress')}>
+                              <div className="flex items-center gap-2">
+                                <div className="w-2 h-2 rounded-full bg-blue-500" />
+                                진행 중
+                              </div>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => updateStatus('in-review')}>
+                              <div className="flex items-center gap-2">
+                                <div className="w-2 h-2 rounded-full bg-purple-500" />
+                                리뷰 중
+                              </div>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => updateStatus('done')}>
+                              <div className="flex items-center gap-2">
+                                <div className="w-2 h-2 rounded-full bg-green-500" />
+                                완료
+                              </div>
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      ) : (
+                        <Badge variant="outline" className={`${getStatusColor(task.status)} border-0`}>
+                          {getStatusIcon(task.status)}
+                          <span className="ml-1">{getStatusLabel(task.status)}</span>
+                        </Badge>
+                      )}
                       
                       <Badge className={getPriorityColor(task.priority)}>
                         <Flag className="w-3 h-3 mr-1" />
@@ -809,89 +910,91 @@ export default function TaskDetail({ taskId, onBack, onTaskUpdated }: TaskDetail
                   </div>
                   
                   {/* Quick Actions - 상태별 빠른 액션 버튼 */}
-                  <div className="flex gap-2 items-center flex-wrap">
-                    {/* todo 상태일 때 */}
-                    {task.status?.toLowerCase().trim() === 'todo' && (
-                      <Button 
-                        size="sm" 
-                        onClick={() => updateStatus('in-progress')} 
-                        style={{backgroundColor: '#2563eb', color: '#ffffff'}}
-                        className="hover:bg-blue-700"
-                      >
-                        <Play className="w-3 h-3 mr-1" />
-                        시작하기
-                      </Button>
-                    )}
-                    
-                    {/* in-progress 상태일 때 */}
-                    {task.status?.toLowerCase().replace('_', '-').trim() === 'in-progress' && (
-                      <>
+                  {project && canModifyTask(project.managerId) && (
+                    <div className="flex gap-2 items-center flex-wrap">
+                      {/* todo 상태일 때 */}
+                      {task.status?.toLowerCase().trim() === 'todo' && (
                         <Button 
                           size="sm" 
-                          variant="outline" 
-                          onClick={() => updateStatus('todo')}
-                          style={{color: '#000000'}}
+                          onClick={() => updateStatus('in-progress')} 
+                          style={{backgroundColor: '#2563eb', color: '#ffffff'}}
+                          className="hover:bg-blue-700"
                         >
-                          <Pause className="w-3 h-3 mr-1" />
-                          일시정지
+                          <Play className="w-3 h-3 mr-1" />
+                          시작하기
                         </Button>
-                        <Button 
-                          size="sm" 
-                          onClick={() => updateStatus('in-review')} 
-                          style={{backgroundColor: '#9333ea', color: '#ffffff'}}
-                          className="hover:bg-purple-700"
-                        >
-                          리뷰 요청
-                        </Button>
-                      </>
-                    )}
-                    
-                    {/* in-review 상태일 때 */}
-                    {(task.status?.toLowerCase().replace('_', '-').trim() === 'in-review' || 
-                      task.status?.toLowerCase().trim() === 'review') && (
-                      <>
+                      )}
+                      
+                      {/* in-progress 상태일 때 */}
+                      {task.status?.toLowerCase().replace('_', '-').trim() === 'in-progress' && (
+                        <>
+                          <Button 
+                            size="sm" 
+                            variant="outline" 
+                            onClick={() => updateStatus('todo')}
+                            style={{color: '#000000'}}
+                          >
+                            <Pause className="w-3 h-3 mr-1" />
+                            일시정지
+                          </Button>
+                          <Button 
+                            size="sm" 
+                            onClick={() => updateStatus('in-review')} 
+                            style={{backgroundColor: '#9333ea', color: '#ffffff'}}
+                            className="hover:bg-purple-700"
+                          >
+                            리뷰 요청
+                          </Button>
+                        </>
+                      )}
+                      
+                      {/* in-review 상태일 때 */}
+                      {(task.status?.toLowerCase().replace('_', '-').trim() === 'in-review' || 
+                        task.status?.toLowerCase().trim() === 'review') && (
+                        <>
+                          <Button 
+                            size="sm" 
+                            variant="outline" 
+                            onClick={() => updateStatus('in-progress')}
+                            style={{color: '#000000'}}
+                          >
+                            수정 필요
+                          </Button>
+                          <Button 
+                            size="sm" 
+                            onClick={() => updateStatus('done')} 
+                            style={{backgroundColor: '#16a34a', color: '#ffffff'}}
+                            className="hover:bg-green-700"
+                          >
+                            <CheckCircle className="w-3 h-3 mr-1" />
+                            완료
+                          </Button>
+                        </>
+                      )}
+                      
+                      {/* done 상태일 때 */}
+                      {task.status?.toLowerCase().trim() === 'done' && (
                         <Button 
                           size="sm" 
                           variant="outline" 
                           onClick={() => updateStatus('in-progress')}
                           style={{color: '#000000'}}
                         >
-                          수정 필요
+                          재작업
                         </Button>
-                        <Button 
-                          size="sm" 
-                          onClick={() => updateStatus('done')} 
-                          style={{backgroundColor: '#16a34a', color: '#ffffff'}}
-                          className="hover:bg-green-700"
-                        >
-                          <CheckCircle className="w-3 h-3 mr-1" />
-                          완료
-                        </Button>
-                      </>
-                    )}
-                    
-                    {/* done 상태일 때 */}
-                    {task.status?.toLowerCase().trim() === 'done' && (
+                      )}
+                      
+                      {/* 삭제 버튼 */}
                       <Button 
                         size="sm" 
-                        variant="outline" 
-                        onClick={() => updateStatus('in-progress')}
-                        style={{color: '#000000'}}
+                        variant="destructive"
+                        onClick={() => setShowDeleteConfirm(true)}
                       >
-                        재작업
+                        <Trash2 className="w-3 h-3 mr-1" />
+                        삭제
                       </Button>
-                    )}
-                    
-                    {/* 삭제 버튼 */}
-                    <Button 
-                      size="sm" 
-                      variant="destructive"
-                      onClick={() => setShowDeleteConfirm(true)}
-                    >
-                      <Trash2 className="w-3 h-3 mr-1" />
-                      삭제
-                    </Button>
-                  </div>
+                    </div>
+                  )}
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -929,44 +1032,58 @@ export default function TaskDetail({ taskId, onBack, onTaskUpdated }: TaskDetail
                   <CardHeader className="pb-3">
                     <div className="flex items-center justify-between">
                       <CardTitle className="text-base">체크리스트</CardTitle>
-                      <Button 
-                        size="sm" 
-                        variant="ghost"
-                        onClick={() => setShowChecklistForm(!showChecklistForm)}
-                      >
-                        <Plus className="w-4 h-4 mr-1" />
-                        항목 추가
-                      </Button>
+                      {project && canModifyTask(project.managerId) && (
+                        <Button 
+                          size="sm" 
+                          variant="ghost"
+                          onClick={() => setShowChecklistForm(!showChecklistForm)}
+                        >
+                          <Plus className="w-4 h-4 mr-1" />
+                          항목 추가
+                        </Button>
+                      )}
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-2">
                     {/* 체크리스트 항목들 */}
                     {checklist.length > 0 ? (
                       <div className="space-y-2">
-                        {checklist.map((item) => (
-                          <div 
-                            key={item.id} 
-                            className="flex items-center gap-3 p-2 rounded hover:bg-gray-50 group"
-                          >
-                            <Checkbox
-                              checked={item.completed}
-                              onCheckedChange={() => toggleChecklistItem(item.id)}
-                            />
-                            <span 
-                              className={`flex-1 ${item.completed ? 'line-through text-gray-400' : ''}`}
+                        {checklist.map((item) => {
+                          // 체크리스트 삭제 권한 확인
+                          const canDeleteChecklistItem = user && (
+                            isAdmin() || // ADMIN은 모든 항목 삭제 가능
+                            (isLeader() && project && canModifyTask(project.managerId)) || // LEADER는 자신의 프로젝트에서 모든 항목 삭제 가능
+                            item.creatorId === user.id.toString() // 본인이 만든 항목
+                          );
+                          
+                          return (
+                            <div 
+                              key={item.id} 
+                              className="flex items-center gap-3 p-2 rounded hover:bg-gray-50 group"
                             >
-                              {item.text}
-                            </span>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="opacity-0 group-hover:opacity-100 transition-opacity"
-                              onClick={() => deleteChecklistItem(item.id)}
-                            >
-                              <Trash2 className="w-3 h-3 text-red-500" />
-                            </Button>
-                          </div>
-                        ))}
+                              <Checkbox
+                                checked={item.completed}
+                                onCheckedChange={() => toggleChecklistItem(item.id)}
+                              />
+                              <span 
+                                className={`flex-1 ${item.completed ? 'line-through text-gray-400' : ''}`}
+                              >
+                                {item.text}
+                              </span>
+                              {/* 삭제 버튼 - 권한이 있는 경우만 표시 */}
+                              {canDeleteChecklistItem && (
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="opacity-0 group-hover:opacity-100 transition-opacity"
+                                  onClick={() => deleteChecklistItem(item.id)}
+                                >
+                                  <Trash2 className="w-3 h-3 text-red-500" />
+                                </Button>
+                              )}
+                            </div>
+                          );
+                        })}
                       </div>
                     ) : (
                       <div className="text-center py-6 text-gray-400">
@@ -1022,25 +1139,26 @@ export default function TaskDetail({ taskId, onBack, onTaskUpdated }: TaskDetail
                       </span>
                     )}
                   </div>
-                  <div className="flex gap-2">
-                    {!isFileEditMode ? (
-                      <>
-                        <Button size="sm" variant="outline" onClick={toggleFileEditMode}>
-                          <Edit3 className="w-4 h-4 mr-2" />
-                          파일 편집
-                        </Button>
-                        <Button size="sm" variant="outline" onClick={() => fileInputRef.current?.click()}>
-                          <Upload className="w-4 h-4 mr-2" />
-                          파일 업로드
-                        </Button>
-                      </>
-                    ) : (
-                      <>
-                        <Button 
-                          size="sm" 
-                          variant="destructive"
-                          onClick={handleBulkDeleteFiles}
-                          disabled={selectedFileIds.size === 0 || isDeletingFiles}
+                  {project && canModifyTask(project.managerId) && (
+                    <div className="flex gap-2">
+                      {!isFileEditMode ? (
+                        <>
+                          <Button size="sm" variant="outline" onClick={toggleFileEditMode}>
+                            <Edit3 className="w-4 h-4 mr-2" />
+                            파일 편집
+                          </Button>
+                          <Button size="sm" variant="outline" onClick={() => fileInputRef.current?.click()}>
+                            <Upload className="w-4 h-4 mr-2" />
+                            파일 업로드
+                          </Button>
+                        </>
+                      ) : (
+                        <>
+                          <Button 
+                            size="sm" 
+                            variant="destructive"
+                            onClick={handleBulkDeleteFiles}
+                            disabled={selectedFileIds.size === 0 || isDeletingFiles}
                         >
                           <Trash2 className="w-4 h-4 mr-2" />
                           {isDeletingFiles ? '삭제 중...' : '선택 파일 삭제'}
@@ -1056,7 +1174,8 @@ export default function TaskDetail({ taskId, onBack, onTaskUpdated }: TaskDetail
                         </Button>
                       </>
                     )}
-                  </div>
+                    </div>
+                  )}
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
@@ -1103,6 +1222,13 @@ export default function TaskDetail({ taskId, onBack, onTaskUpdated }: TaskDetail
                   const uploader = users.find(u => u.id === attachment.uploadedBy);
                   const isSelected = selectedFileIds.has(attachment.id);
                   
+                  // 파일 삭제 권한 확인
+                  const canDeleteFile = user && (
+                    isAdmin() || // ADMIN은 모든 파일 삭제 가능
+                    (isLeader() && project && canModifyTask(project.managerId)) || // LEADER는 자신의 프로젝트 파일 삭제 가능
+                    attachment.uploadedBy === user.id.toString() // 본인이 업로드한 파일
+                  );
+                  
                   return (
                     <div 
                       key={attachment.id} 
@@ -1112,8 +1238,8 @@ export default function TaskDetail({ taskId, onBack, onTaskUpdated }: TaskDetail
                           : 'border-gray-200'
                       }`}
                     >
-                      {/* 편집 모드일 때 체크박스 */}
-                      {isFileEditMode && (
+                      {/* 편집 모드일 때 체크박스 (권한이 있는 파일만) */}
+                      {isFileEditMode && canDeleteFile && (
                         <Checkbox
                           checked={isSelected}
                           onCheckedChange={(checked) => handleFileSelect(attachment.id, !!checked)}
@@ -1178,15 +1304,17 @@ export default function TaskDetail({ taskId, onBack, onTaskUpdated }: TaskDetail
                             <Download className="w-4 h-4" />
                           </Button>
                           
-                          {/* 삭제 */}
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => handleDeleteAttachment(attachment.id)}
-                            className="text-red-600 hover:text-red-700"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
+                          {/* 삭제 - 권한이 있는 경우만 표시 */}
+                          {canDeleteFile && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => handleDeleteAttachment(attachment.id)}
+                              className="text-red-600 hover:text-red-700"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          )}
                         </div>
                       )}
                     </div>

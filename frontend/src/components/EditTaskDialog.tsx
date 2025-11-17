@@ -10,6 +10,7 @@ import { Badge } from './ui/badge';
 import { Avatar, AvatarFallback } from './ui/avatar';
 import { Checkbox } from './ui/checkbox';
 import api, { plmApi } from '../services/api';
+import { useAuth } from '../contexts/AuthContext';
 
 interface EditTaskDialogProps {
   open: boolean;
@@ -36,6 +37,7 @@ export default function EditTaskDialog({
   initialData,
   onTaskUpdated
 }: EditTaskDialogProps) {
+  const { user } = useAuth();
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -96,6 +98,11 @@ export default function EditTaskDialog({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    if (!user) {
+      alert('로그인이 필요합니다.');
+      return;
+    }
+    
     if (!formData.title.trim() || isSubmitting) return;
 
     try {
@@ -139,16 +146,20 @@ export default function EditTaskDialog({
       };
 
       console.log('태스크 수정 요청:', updateData);
-      await api.patch(`/tasks/${taskId}`, updateData);
+      await api.patch(`/tasks/${taskId}?userId=${user.id}`, updateData);
       
       if (onTaskUpdated) {
         onTaskUpdated();
       }
       onClose();
       alert('태스크가 수정되었습니다.');
-    } catch (error) {
+    } catch (error: any) {
       console.error('태스크 수정 실패:', error);
-      alert('태스크 수정에 실패했습니다.');
+      if (error.response?.status === 403) {
+        alert('이 태스크를 수정할 권한이 없습니다.');
+      } else {
+        alert('태스크 수정에 실패했습니다.');
+      }
     } finally {
       setIsSubmitting(false);
     }

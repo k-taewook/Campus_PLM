@@ -1,5 +1,6 @@
 package com.plm.api.task.controller;
 
+import com.plm.api.common.security.AuthorizationService;
 import com.plm.api.task.dto.TaskDto;
 import com.plm.api.task.entity.TaskStatus;
 import com.plm.api.task.service.TaskService;
@@ -18,6 +19,9 @@ public class TaskController {
     
     @Autowired
     private TaskService taskService;
+    
+    @Autowired
+    private AuthorizationService authorizationService;
     
     // 모든 태스크 조회
     @GetMapping("/tasks")
@@ -55,10 +59,19 @@ public class TaskController {
         return ResponseEntity.ok(tasks);
     }
     
-    // 태스크 생성
+    // 태스크 생성 (ADMIN 또는 프로젝트 리더만 가능)
     @PostMapping("/projects/{projectId}/tasks")
-    public ResponseEntity<TaskDto> createTask(@PathVariable Long projectId, @RequestBody TaskDto taskDto) {
+    public ResponseEntity<?> createTask(
+            @PathVariable Long projectId, 
+            @RequestBody TaskDto taskDto,
+            @RequestParam Long userId) {
         try {
+            // 권한 체크: ADMIN 또는 프로젝트 리더
+            if (!authorizationService.canManageProject(userId, projectId)) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body("태스크를 생성할 권한이 없습니다.");
+            }
+            
             TaskDto createdTask = taskService.createTask(projectId, taskDto);
             return ResponseEntity.status(HttpStatus.CREATED).body(createdTask);
         } catch (RuntimeException e) {
@@ -66,41 +79,83 @@ public class TaskController {
         }
     }
     
-    // 태스크 수정
+    // 태스크 수정 (ADMIN 또는 프로젝트 리더만 가능)
     @PutMapping("/tasks/{id}")
-    public ResponseEntity<TaskDto> updateTask(@PathVariable Long id, @RequestBody TaskDto taskDto) {
+    public ResponseEntity<?> updateTask(
+            @PathVariable Long id, 
+            @RequestBody TaskDto taskDto,
+            @RequestParam Long userId) {
+        // 권한 체크: ADMIN 또는 프로젝트 리더
+        if (!authorizationService.canModifyTask(userId, id)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body("태스크를 수정할 권한이 없습니다.");
+        }
+        
         Optional<TaskDto> updatedTask = taskService.updateTask(id, taskDto);
         return updatedTask.map(ResponseEntity::ok)
                          .orElse(ResponseEntity.notFound().build());
     }
     
-    // 태스크 부분 수정 (PATCH)
+    // 태스크 부분 수정 (PATCH) (ADMIN 또는 프로젝트 리더만 가능)
     @PatchMapping("/tasks/{id}")
-    public ResponseEntity<TaskDto> partialUpdateTask(@PathVariable Long id, @RequestBody TaskDto taskDto) {
+    public ResponseEntity<?> partialUpdateTask(
+            @PathVariable Long id, 
+            @RequestBody TaskDto taskDto,
+            @RequestParam Long userId) {
+        // 권한 체크: ADMIN 또는 프로젝트 리더
+        if (!authorizationService.canModifyTask(userId, id)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body("태스크를 수정할 권한이 없습니다.");
+        }
+        
         Optional<TaskDto> updatedTask = taskService.updateTask(id, taskDto);
         return updatedTask.map(ResponseEntity::ok)
                          .orElse(ResponseEntity.notFound().build());
     }
     
-    // 태스크 상태 변경
+    // 태스크 상태 변경 (ADMIN 또는 프로젝트 리더만 가능)
     @PutMapping("/tasks/{id}/status")
-    public ResponseEntity<TaskDto> updateTaskStatus(@PathVariable Long id, @RequestBody TaskStatusUpdateRequest request) {
+    public ResponseEntity<?> updateTaskStatus(
+            @PathVariable Long id, 
+            @RequestBody TaskStatusUpdateRequest request,
+            @RequestParam Long userId) {
+        // 권한 체크: ADMIN 또는 프로젝트 리더
+        if (!authorizationService.canModifyTask(userId, id)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body("태스크 상태를 변경할 권한이 없습니다.");
+        }
+        
         Optional<TaskDto> updatedTask = taskService.updateTaskStatus(id, request.getStatus());
         return updatedTask.map(ResponseEntity::ok)
                          .orElse(ResponseEntity.notFound().build());
     }
     
-    // 태스크 담당자 변경
+    // 태스크 담당자 변경 (ADMIN 또는 프로젝트 리더만 가능)
     @PutMapping("/tasks/{id}/assign")
-    public ResponseEntity<TaskDto> assignTask(@PathVariable Long id, @RequestBody TaskAssignRequest request) {
+    public ResponseEntity<?> assignTask(
+            @PathVariable Long id, 
+            @RequestBody TaskAssignRequest request,
+            @RequestParam Long userId) {
+        // 권한 체크: ADMIN 또는 프로젝트 리더
+        if (!authorizationService.canModifyTask(userId, id)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body("담당자를 변경할 권한이 없습니다.");
+        }
+        
         Optional<TaskDto> updatedTask = taskService.assignTask(id, request.getAssigneeId());
         return updatedTask.map(ResponseEntity::ok)
                          .orElse(ResponseEntity.notFound().build());
     }
     
-    // 태스크 삭제
+    // 태스크 삭제 (ADMIN 또는 프로젝트 리더만 가능)
     @DeleteMapping("/tasks/{id}")
-    public ResponseEntity<Void> deleteTask(@PathVariable Long id) {
+    public ResponseEntity<?> deleteTask(@PathVariable Long id, @RequestParam Long userId) {
+        // 권한 체크: ADMIN 또는 프로젝트 리더
+        if (!authorizationService.canModifyTask(userId, id)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body("태스크를 삭제할 권한이 없습니다.");
+        }
+        
         boolean deleted = taskService.deleteTask(id);
         return deleted ? ResponseEntity.noContent().build() 
                       : ResponseEntity.notFound().build();

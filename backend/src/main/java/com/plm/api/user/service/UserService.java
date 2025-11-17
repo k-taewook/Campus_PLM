@@ -5,6 +5,10 @@ import com.plm.api.user.entity.User;
 import com.plm.api.user.entity.UserRole;
 import com.plm.api.user.entity.UserStatus;
 import com.plm.api.user.repository.UserRepository;
+import com.plm.api.team.repository.TeamMemberRepository;
+import com.plm.api.project.repository.ProjectMemberRepository;
+import com.plm.api.team.entity.TeamMember;
+import com.plm.api.project.entity.ProjectMember;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -14,6 +18,8 @@ import java.util.List;
 import java.util.Optional;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * User Service
@@ -55,11 +61,17 @@ import java.util.stream.Collectors;
 public class UserService {
     
     private final UserRepository userRepository;
+    private final TeamMemberRepository teamMemberRepository;
+    private final ProjectMemberRepository projectMemberRepository;
     private final BCryptPasswordEncoder passwordEncoder;
     private static final Pattern EMAIL_PATTERN = Pattern.compile("^[A-Za-z0-9+_.-]+@(.+)$");
     
-    public UserService(UserRepository userRepository) {
+    public UserService(UserRepository userRepository,
+                      TeamMemberRepository teamMemberRepository,
+                      ProjectMemberRepository projectMemberRepository) {
         this.userRepository = userRepository;
+        this.teamMemberRepository = teamMemberRepository;
+        this.projectMemberRepository = projectMemberRepository;
         this.passwordEncoder = new BCryptPasswordEncoder();
     }
     
@@ -94,7 +106,7 @@ public class UserService {
         user.setUsername(email.split("@")[0]); // 이메일의 @ 앞부분을 username으로 사용
         user.setPassword(passwordEncoder.encode(password)); // BCrypt 암호화
         user.setFullName(fullName);
-        user.setRole(UserRole.VIEWER); // 기본 역할: VIEWER
+        user.setRole(UserRole.MEMBER); // 기본 역할: MEMBER
         user.setStatus(UserStatus.ACTIVE); // 기본 상태: ACTIVE
         user.setCreatedAt(LocalDateTime.now());
         user.setUpdatedAt(LocalDateTime.now());
@@ -267,6 +279,57 @@ public class UserService {
         user.setStatus(UserStatus.DELETED);
         user.setUpdatedAt(LocalDateTime.now());
 
+        userRepository.save(user);
+    }
+    
+    // 사용자 삭제 전 정보 조회 (팀/프로젝트 소속 정보)
+    public Map<String, Object> getUserDeletionInfo(Long id) {
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("User not found with id: " + id));
+
+        Map<String, Object> info = new HashMap<>();
+        
+        // 소속된 팀 목록
+        List<TeamMember> teamMemberships = teamMemberRepository.findByUserId(id);
+        List<String> teamNames = teamMemberships.stream()
+                .map(tm -> tm.getTeam().getName())
+                .collect(Collectors.toList());
+        
+        // 소속된 프로젝트 목록
+        List<ProjectMember> projectMemberships = projectMemberRepository.findByUserId(id);
+        List<String> projectNames = projectMemberships.stream()
+                .map(pm -> pm.getProject().getName())
+                .collect(Collectors.toList());
+        
+        info.put("userId", id);
+        info.put("userName", user.getFullName());
+        info.put("teams", teamNames);
+        info.put("projects", projectNames);
+        info.put("teamCount", teamNames.size());
+        info.put("projectCount", projectNames.size());
+        
+        return info;
+    }
+    
+    // 사용자 강제 삭제 (팀/프로젝트에서 자동 제거)
+    public void forceDeleteUser(Long id) {
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("User not found with id: " + id));
+
+        // 이미 삭제된 사용자는 다시 삭제할 수 없음
+        if (user.getStatus() == UserStatus.DELETED) {
+            throw new RuntimeException("User already deleted with id: " + id);
+        }
+
+        // 1. 모든 팀 멤버십 제거
+        teamMemberRepository.deleteByUserId(id);
+        
+        // 2. 모든 프로젝트 멤버십 제거
+        projectMemberRepository.deleteByUserId(id);
+        
+        // 3. 사용자 소프트 삭제
+        user.setStatus(UserStatus.DELETED);
+        user.setUpdatedAt(LocalDateTime.now());
         userRepository.save(user);
     }
     
