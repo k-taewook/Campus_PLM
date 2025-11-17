@@ -183,7 +183,8 @@ public class UserService {
     
     // 모든 사용자 조회
     public List<UserDto> getAllUsers() {
-        return userRepository.findAll().stream()
+        // 소프트 삭제된(DELETED) 사용자는 기본 목록에서 제외
+        return userRepository.findAllNotDeleted().stream()
                 .map(this::convertToDto)
                 .collect(Collectors.toList());
     }
@@ -192,6 +193,12 @@ public class UserService {
     public UserDto getUserById(Long id) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("User not found with id: " + id));
+
+        // 소프트 삭제된 사용자는 조회 불가 처리
+        if (user.getStatus() == UserStatus.DELETED) {
+            throw new RuntimeException("User not found with id: " + id);
+        }
+
         return convertToDto(user);
     }
     
@@ -199,6 +206,11 @@ public class UserService {
     public UserDto getUserByUsername(String username) {
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new RuntimeException("User not found with username: " + username));
+
+        if (user.getStatus() == UserStatus.DELETED) {
+            throw new RuntimeException("User not found with username: " + username);
+        }
+
         return convertToDto(user);
     }
     
@@ -206,6 +218,11 @@ public class UserService {
     public UserDto getUserByEmail(String email) {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new RuntimeException("User not found with email: " + email));
+
+        if (user.getStatus() == UserStatus.DELETED) {
+            throw new RuntimeException("User not found with email: " + email);
+        }
+
         return convertToDto(user);
     }
     
@@ -238,10 +255,19 @@ public class UserService {
     
     // 사용자 삭제
     public void deleteUser(Long id) {
-        if (!userRepository.existsById(id)) {
-            throw new RuntimeException("User not found with id: " + id);
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("User not found with id: " + id));
+
+        // 이미 삭제된 사용자는 다시 삭제할 수 없음
+        if (user.getStatus() == UserStatus.DELETED) {
+            throw new RuntimeException("User already deleted with id: " + id);
         }
-        userRepository.deleteById(id);
+
+        // 소프트 삭제: 상태를 DELETED로 변경
+        user.setStatus(UserStatus.DELETED);
+        user.setUpdatedAt(LocalDateTime.now());
+
+        userRepository.save(user);
     }
     
     // 활성 사용자 목록 조회
@@ -263,5 +289,17 @@ public class UserService {
         return userRepository.findByRole(role).stream()
                 .map(this::convertToDto)
                 .collect(Collectors.toList());
+    }
+
+    // 사용자 상태 변경 (ACTIVE / INACTIVE / SUSPENDED / DELETED)
+    public UserDto changeUserStatus(Long id, UserStatus status) {
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("User not found with id: " + id));
+
+        user.setStatus(status);
+        user.setUpdatedAt(LocalDateTime.now());
+
+        User updatedUser = userRepository.save(user);
+        return convertToDto(updatedUser);
     }
 }

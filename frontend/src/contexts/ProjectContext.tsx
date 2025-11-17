@@ -9,6 +9,7 @@ export interface User {
   avatar?: string;
   role: 'admin' | 'manager' | 'member';
   dbRole?: 'ADMIN' | 'MANAGER' | 'DEVELOPER' | 'DESIGNER' | 'TESTER' | 'VIEWER';
+   status?: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED' | 'DELETED';
   createdAt: string;
   lastActive: string;
 }
@@ -202,6 +203,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
         dbRole: user.role,
         role: user.role === 'ADMIN' ? 'admin' : 
               user.role === 'MANAGER' ? 'manager' : 'member',
+        status: user.status,
         createdAt: user.createdAt || new Date().toISOString(),
         lastActive: user.updatedAt || new Date().toISOString()
       }));
@@ -229,6 +231,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
         dbRole: authUser.role,
         role: authUser.role === 'ADMIN' ? 'admin' : 
               authUser.role === 'MANAGER' ? 'manager' : 'member',
+        status: authUser.status,
         createdAt: new Date().toISOString(),
         lastActive: new Date().toISOString()
       };

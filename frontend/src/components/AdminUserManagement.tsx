@@ -221,27 +221,38 @@ export default function AdminUserManagement() {
   };
 
   const getStatusColor = (user: any) => {
-    if (!user.lastActive) return 'bg-gray-100 text-gray-800';
-    
-    const lastActive = new Date(user.lastActive);
-    const now = new Date();
-    const diffInDays = Math.floor((now.getTime() - lastActive.getTime()) / (1000 * 60 * 60 * 24));
-    
-    if (diffInDays <= 1) return 'bg-green-100 text-green-800';
-    if (diffInDays <= 7) return 'bg-yellow-100 text-yellow-800';
-    return 'bg-red-100 text-red-800';
+    const status = (user.status || user.dbStatus || '').toUpperCase();
+
+    // 계정 상태 기반 색상
+    if (status === 'INACTIVE' || status === 'SUSPENDED') {
+      return 'bg-red-100 text-red-800';
+    }
+    if (status === 'DELETED') {
+      return 'bg-gray-100 text-gray-800';
+    }
+
+    // ACTIVE 또는 상태 정보가 없으면 항상 녹색으로 표시
+    return 'bg-green-100 text-green-800';
   };
 
   const getStatusLabel = (user: any) => {
-    if (!user.lastActive) return '비활성';
-    
+    const status = (user.status || user.dbStatus || '').toUpperCase();
+
+    // 계정 상태 라벨
+    if (status === 'INACTIVE') return '비활성';
+    if (status === 'SUSPENDED') return '정지';
+    if (status === 'DELETED') return '삭제됨';
+
+    // ACTIVE 또는 상태 정보가 없으면 최근 활동 기준 서브 상태 표시
+    if (!user.lastActive) return '활성';
+
     const lastActive = new Date(user.lastActive);
     const now = new Date();
     const diffInDays = Math.floor((now.getTime() - lastActive.getTime()) / (1000 * 60 * 60 * 24));
-    
+
     if (diffInDays <= 1) return '활성';
     if (diffInDays <= 7) return '최근 활동';
-    return '비���성';
+    return '활성';
   };
 
   const formatDate = (dateString: string) => {
@@ -288,9 +299,21 @@ export default function AdminUserManagement() {
       name: user.name,
       email: user.email,
       role: (user.dbRole || (typeof user.role === 'string' ? user.role.toUpperCase() : 'VIEWER')) as typeof editingUser.role,
-      status: getStatusLabel(user) === '활성' ? 'ACTIVE' : 'INACTIVE'
+      status: ((user.status || user.dbStatus || 'ACTIVE').toUpperCase() === 'ACTIVE' ? 'ACTIVE' : 'INACTIVE')
     });
     setShowEditDialog(true);
+  };
+
+  const handleToggleUserStatus = async (user: any) => {
+    const currentStatus = (user.status || user.dbStatus || 'ACTIVE').toUpperCase();
+    const newStatus = currentStatus === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
+
+    try {
+      await plmApi.updateUserStatus(Number(user.id), newStatus as any);
+      await reloadUsers();
+    } catch (e) {
+      console.error('사용자 상태 변경 실패', e);
+    }
   };
 
   const handleUpdateUser = async () => {
@@ -628,6 +651,16 @@ export default function AdminUserManagement() {
                               <DropdownMenuItem onClick={() => handleEditUser(user)}>
                                 <Edit2 className="w-4 h-4 mr-2" />
                                 정보 수정
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleToggleUserStatus(user)}>
+                                {(user.status || user.dbStatus || 'ACTIVE').toUpperCase() === 'ACTIVE' ? (
+                                  <UserX className="w-4 h-4 mr-2" />
+                                ) : (
+                                  <UserCheck className="w-4 h-4 mr-2" />
+                                )}
+                                {(user.status || user.dbStatus || 'ACTIVE').toUpperCase() === 'ACTIVE'
+                                  ? '사용자 비활성화'
+                                  : '사용자 활성화'}
                               </DropdownMenuItem>
                               <DropdownMenuSeparator />
                               <AlertDialog>

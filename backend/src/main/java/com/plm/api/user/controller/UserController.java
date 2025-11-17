@@ -143,18 +143,16 @@ public class UserController {
     }
     */
     
-    // 사용자 상태 변경 - TODO: 구현 필요
-    /*
+    // 사용자 상태 변경 (ACTIVE / INACTIVE / SUSPENDED / DELETED)
     @PutMapping("/{id}/status")
-    public ResponseEntity<UserDto> changeUserStatus(@PathVariable Long id, @RequestBody UserStatus status) {
+    public ResponseEntity<?> changeUserStatus(@PathVariable Long id, @RequestBody UserStatus status) {
         try {
             UserDto user = userService.changeUserStatus(id, status);
             return ResponseEntity.ok(user);
         } catch (RuntimeException e) {
-            return ResponseEntity.notFound().build();
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
         }
     }
-    */
     
     // 마지막 로그인 시간 업데이트 - TODO: 구현 필요
     /*

@@ -46,6 +46,10 @@ public interface UserRepository extends JpaRepository<User, Long> {
     // 활성 사용자만 조회
     @Query("SELECT u FROM User u WHERE u.status = 'ACTIVE'")
     List<User> findActiveUsers();
+
+    // 삭제되지 않은 사용자 전체 조회 (소프트 삭제용)
+    @Query("SELECT u FROM User u WHERE u.status <> 'DELETED'")
+    List<User> findAllNotDeleted();
     
     // 사용자명 중복 체크
     boolean existsByUsername(String username);

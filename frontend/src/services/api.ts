@@ -92,6 +92,15 @@ export const plmApi = {
     return response.data;
   },
 
+  // 사용자 상태 변경 (ACTIVE / INACTIVE / SUSPENDED / DELETED)
+  updateUserStatus: async (
+    id: number,
+    status: User['status'],
+  ): Promise<User> => {
+    const response = await api.put(`/users/${id}/status`, status);
+    return response.data;
+  },
+
   // 사용자 삭제
   deleteUser: async (id: number): Promise<void> => {
     await api.delete(`/users/${id}`);
