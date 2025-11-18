@@ -149,13 +149,58 @@ public class FileController {
         }
     }
 
-    // 파일 일괄 삭제
+   // 파일 일괄 삭제
     @DeleteMapping("/bulk")
-    public ResponseEntity<?> deleteFiles(@RequestBody Map<String, Object> request) {
+    public ResponseEntity<Map<String, Object>> deleteFiles(@RequestBody Map<String, Object> request) {
         try {
-            @SuppressWarnings("unchecked")
-            List<Long> fileIds = (List<Long>) request.get("fileIds");
-            Long userId = ((Number) request.get("userId")).longValue();
+            // fileIds 추출 및 변환
+            Object fileIdsObj = request.get("fileIds");
+            if (fileIdsObj == null) {
+                return ResponseEntity.badRequest()
+                    .body(Map.of("error", "fileIds는 필수입니다."));
+            }
+            
+            List<Long> fileIds;
+            try {
+                @SuppressWarnings("unchecked")
+                List<Object> fileIdList = (List<Object>) fileIdsObj;
+                fileIds = fileIdList.stream()
+                    .map(obj -> {
+                        if (obj instanceof Number) {
+                            return ((Number) obj).longValue();
+                        } else {
+                            return Long.parseLong(obj.toString());
+                        }
+                    })
+                    .collect(java.util.stream.Collectors.toList());
+            } catch (Exception e) {
+                return ResponseEntity.badRequest()
+                    .body(Map.of("error", "fileIds 형식이 올바르지 않습니다: " + e.getMessage()));
+            }
+            
+            if (fileIds.isEmpty()) {
+                return ResponseEntity.badRequest()
+                    .body(Map.of("error", "fileIds가 비어있습니다."));
+            }
+            
+            // userId 추출
+            Object userIdObj = request.get("userId");
+            if (userIdObj == null) {
+                return ResponseEntity.badRequest()
+                    .body(Map.of("error", "userId는 필수입니다."));
+            }
+            
+            Long userId;
+            try {
+                if (userIdObj instanceof Number) {
+                    userId = ((Number) userIdObj).longValue();
+                } else {
+                    userId = Long.parseLong(userIdObj.toString());
+                }
+            } catch (Exception e) {
+                return ResponseEntity.badRequest()
+                    .body(Map.of("error", "userId 형식이 올바르지 않습니다: " + e.getMessage()));
+            }
             
             int successCount = 0;
             int failureCount = 0;
@@ -186,7 +231,9 @@ public class FileController {
             
             return ResponseEntity.ok(response);
         } catch (Exception e) {
-            throw new RuntimeException("Bulk delete operation failed: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(Map.of("error", "Bulk delete operation failed: " + e.getMessage()));
         }
     }
 
