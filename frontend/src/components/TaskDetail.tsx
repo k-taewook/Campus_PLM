@@ -65,6 +65,8 @@ export default function TaskDetail({ taskId, onBack, onTaskUpdated }: TaskDetail
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [editData, setEditData] = useState<any>({});
   const [newComment, setNewComment] = useState('');
+  const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
+  const [editingCommentContent, setEditingCommentContent] = useState('');
   const [newLink, setNewLink] = useState({ name: '', url: '' });
   const [showLinkForm, setShowLinkForm] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -225,6 +227,7 @@ export default function TaskDetail({ taskId, onBack, onTaskUpdated }: TaskDetail
           content: c.content,
           createdAt: c.createdAt,
           updatedAt: c.updatedAt,
+          isEdited: c.isEdited,
           attachments: []
         }));
         setTask((prev: any) => prev ? { ...prev, comments: mappedComments } : prev);
@@ -378,12 +381,110 @@ export default function TaskDetail({ taskId, onBack, onTaskUpdated }: TaskDetail
           content: c.content,
           createdAt: c.createdAt,
           updatedAt: c.updatedAt,
+          isEdited: c.isEdited,
           attachments: []
         }));
         setTask((prev: any) => prev ? { ...prev, comments: mappedComments } : prev);
         console.log('댓글 새로고침 완료:', mappedComments.length, '개');
       } catch (err) {
         console.error('댓글 새로고침 실패:', err);
+      }
+    }
+  };
+
+  // 댓글 수정 시작
+  const handleEditComment = (comment: any) => {
+    setEditingCommentId(comment.id);
+    setEditingCommentContent(comment.content);
+  };
+
+  // 댓글 수정 저장
+  const handleSaveComment = async (commentId: string) => {
+    if (!user) {
+      alert('로그인이 필요합니다.');
+      return;
+    }
+
+    if (!editingCommentContent.trim()) {
+      alert('댓글 내용을 입력해주세요.');
+      return;
+    }
+
+    try {
+      await api.put(`/comments/${commentId}?userId=${user.id}`, {
+        content: editingCommentContent.trim()
+      });
+
+      // 댓글 목록 새로고침
+      const commentsResponse = await api.get(`/comments/task/${taskId}`);
+      const commentsData = commentsResponse.data;
+      const mappedComments = commentsData.map((c: any) => ({
+        id: c.id.toString(),
+        userId: c.authorId.toString(),
+        userName: c.authorUsername,
+        content: c.content,
+        createdAt: c.createdAt,
+        updatedAt: c.updatedAt,
+        isEdited: c.isEdited,
+        attachments: []
+      }));
+      
+      setTask((prev: any) => prev ? { ...prev, comments: mappedComments } : prev);
+      setEditingCommentId(null);
+      setEditingCommentContent('');
+      alert('댓글이 수정되었습니다.');
+    } catch (error: any) {
+      console.error('댓글 수정 실패:', error);
+      if (error.response?.status === 403) {
+        alert('이 댓글을 수정할 권한이 없습니다.');
+      } else {
+        alert('댓글 수정에 실패했습니다.');
+      }
+    }
+  };
+
+  // 댓글 수정 취소
+  const handleCancelEditComment = () => {
+    setEditingCommentId(null);
+    setEditingCommentContent('');
+  };
+
+  // 댓글 삭제
+  const handleDeleteComment = async (commentId: string) => {
+    if (!user) {
+      alert('로그인이 필요합니다.');
+      return;
+    }
+
+    if (!confirm('댓글을 삭제하시겠습니까?')) {
+      return;
+    }
+
+    try {
+      await api.delete(`/comments/${commentId}?userId=${user.id}`);
+
+      // 댓글 목록 새로고침
+      const commentsResponse = await api.get(`/comments/task/${taskId}`);
+      const commentsData = commentsResponse.data;
+      const mappedComments = commentsData.map((c: any) => ({
+        id: c.id.toString(),
+        userId: c.authorId.toString(),
+        userName: c.authorUsername,
+        content: c.content,
+        createdAt: c.createdAt,
+        updatedAt: c.updatedAt,
+        isEdited: c.isEdited,
+        attachments: []
+      }));
+      
+      setTask((prev: any) => prev ? { ...prev, comments: mappedComments } : prev);
+      alert('댓글이 삭제되었습니다.');
+    } catch (error: any) {
+      console.error('댓글 삭제 실패:', error);
+      if (error.response?.status === 403) {
+        alert('이 댓글을 삭제할 권한이 없습니다.');
+      } else {
+        alert('댓글 삭제에 실패했습니다.');
       }
     }
   };
@@ -1360,24 +1461,87 @@ export default function TaskDetail({ taskId, onBack, onTaskUpdated }: TaskDetail
                 <Separator />
 
                 {/* Comments List */}
-                {task.comments.map((comment: any) => (
-                  <div key={comment.id} className="flex gap-3">
-                    <Avatar className="w-8 h-8">
-                      <AvatarFallback className="bg-blue-100 text-blue-600">
-                        {comment.userName.charAt(0)}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="font-medium text-sm">{comment.userName}</span>
-                        <span className="text-xs text-gray-500">{formatDateTime(comment.createdAt)}</span>
-                      </div>
-                      <div className="bg-gray-50 rounded-lg p-3">
-                        <p className="whitespace-pre-wrap">{comment.content}</p>
+                {task.comments.map((comment: any) => {
+                  const isCommentAuthor = user && comment.userId === user.id.toString();
+                  const canEditComment = isCommentAuthor; // 본인만 수정 가능
+                  const canDeleteComment = isAdmin() || isCommentAuthor; // ADMIN 또는 본인 삭제 가능
+                  const isEditing = editingCommentId === comment.id;
+
+                  return (
+                    <div key={comment.id} className="flex gap-3">
+                      <Avatar className="w-8 h-8">
+                        <AvatarFallback className="bg-blue-100 text-blue-600">
+                          {comment.userName.charAt(0)}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between mb-1">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium text-sm">{comment.userName}</span>
+                            <span className="text-xs text-gray-500">
+                              {formatDateTime(comment.isEdited && comment.updatedAt ? comment.updatedAt : comment.createdAt)}
+                              {comment.isEdited && <span className="ml-1">(수정됨)</span>}
+                            </span>
+                          </div>
+                          {(canEditComment || canDeleteComment) && !isEditing && (
+                            <div className="flex gap-1">
+                              {canEditComment && (
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-6 px-2"
+                                  onClick={() => handleEditComment(comment)}
+                                >
+                                  <Edit className="w-3 h-3" />
+                                </Button>
+                              )}
+                              {canDeleteComment && (
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-6 px-2 text-red-600 hover:text-red-700"
+                                  onClick={() => handleDeleteComment(comment.id)}
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                </Button>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                        {isEditing ? (
+                          <div className="space-y-2">
+                            <Textarea
+                              value={editingCommentContent}
+                              onChange={(e) => setEditingCommentContent(e.target.value)}
+                              className="min-h-[80px]"
+                            />
+                            <div className="flex gap-2">
+                              <Button
+                                size="sm"
+                                onClick={() => handleSaveComment(comment.id)}
+                              >
+                                <Save className="w-3 h-3 mr-1" />
+                                저장
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={handleCancelEditComment}
+                              >
+                                <X className="w-3 h-3 mr-1" />
+                                취소
+                              </Button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="bg-gray-50 rounded-lg p-3">
+                            <p className="whitespace-pre-wrap">{comment.content}</p>
+                          </div>
+                        )}
                       </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
 
                 {task.comments.length === 0 && (
                   <div className="text-center py-6 text-gray-500">

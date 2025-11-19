@@ -21,6 +21,7 @@ export interface Comment {
   content: string;
   createdAt: string;
   updatedAt?: string;
+  isEdited?: boolean;
   attachments?: Attachment[];
 }
 
@@ -1104,6 +1105,8 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
         userName: createdComment.authorUsername,
         content: createdComment.content,
         createdAt: createdComment.createdAt,
+        updatedAt: createdComment.updatedAt,
+        isEdited: createdComment.isEdited || false,
         attachments
       };
 
