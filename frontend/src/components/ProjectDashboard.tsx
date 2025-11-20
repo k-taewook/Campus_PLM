@@ -31,6 +31,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { useProjects, type Project, type Task } from '../contexts/ProjectContext';
 import EditProjectDialog from './EditProjectDialog';
 import api from '../services/api';
+import { useAuth } from '../contexts/AuthContext';
 
 interface ApiProject {
   id: number;
@@ -75,6 +76,10 @@ export default function ProjectDashboard({ onProjectSelect, onCreateProject }: P
     activities
   } = useProjects();
 
+  const { user, isAdmin, isMember } = useAuth();
+  const userIsAdmin = isAdmin();
+  const userIsMember = isMember();
+
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [priorityFilter, setPriorityFilter] = useState('all');
@@ -91,10 +96,26 @@ export default function ProjectDashboard({ onProjectSelect, onCreateProject }: P
   useEffect(() => {
     const loadData = async () => {
       try {
-        const [projectsRes, tasksRes] = await Promise.all([
-          api.get('/projects'),
-          api.get('/tasks')
-        ]);
+        console.log('ProjectDashboard - Loading data for user:', user, 'isAdmin:', userIsAdmin);
+        
+        let projectsRes;
+        if (user) {
+          if (userIsAdmin) {
+            // ADMIN은 모든 프로젝트 로드
+            console.log('Loading all projects for ADMIN');
+            projectsRes = await api.get('/projects');
+          } else {
+            // 일반 사용자는 본인이 속한 프로젝트만 로드
+            console.log('Loading user projects for userId:', user.id);
+            projectsRes = await api.get(`/projects/user/${user.id}`);
+          }
+        } else {
+          console.log('No user found, loading all projects (fallback)');
+          projectsRes = await api.get('/projects');
+        }
+        
+        const tasksRes = await api.get('/tasks');
+        
         setApiProjects(projectsRes.data);
         setApiTasks(tasksRes.data);
         
@@ -119,7 +140,7 @@ export default function ProjectDashboard({ onProjectSelect, onCreateProject }: P
       }
     };
     loadData();
-  }, []);
+  }, [user?.id, userIsAdmin]);
 
   // API 데이터를 기존 Project 형식으로 변환
   const myProjects = apiProjects.map(p => {
@@ -147,7 +168,7 @@ export default function ProjectDashboard({ onProjectSelect, onCreateProject }: P
       createdAt: p.createdAt,
       updatedAt: p.updatedAt,
     tasks: apiTasks
-      .filter(t => t.projectId === p.id)
+      .filter(t => t.projectId === p.id) // 해당 프로젝트의 태스크만
       .map(t => {
         // 백엔드 상태 매핑
         let frontendStatus = t.status.toLowerCase().replace('_', '-');
@@ -194,7 +215,33 @@ export default function ProjectDashboard({ onProjectSelect, onCreateProject }: P
   };
 });
 
-  const assignedTasks = apiTasks.map(t => {
+  // 본인이 속한 프로젝트의 태스크만 필터링 (프로젝트 통계용)
+  const myProjectIds = new Set(apiProjects.map(p => p.id));
+  const projectTasks = apiTasks.filter(t => myProjectIds.has(t.projectId));
+  
+  console.log('현재 사용자:', user);
+  console.log('전체 태스크:', apiTasks);
+  console.log('본인 프로젝트 IDs:', Array.from(myProjectIds));
+  
+  // 본인에게 할당된 태스크만 필터링 (할당된 태스크 섹션용)
+  const assignedTasks = apiTasks
+    .filter(t => {
+      // 본인 프로젝트의 태스크이면서 본인에게 할당된 태스크만
+      const isMyProject = myProjectIds.has(t.projectId);
+      
+      // assigneeId가 문자열이고 쉼표로 구분된 경우 처리
+      let isAssignedToMe = false;
+      if (user && t.assigneeId) {
+        const assigneeIdStr = String(t.assigneeId);
+        const assigneeIds = assigneeIdStr.split(',').map(id => id.trim());
+        // userId를 문자열로 변환해서 비교하거나, assigneeId를 숫자로 변환해서 비교
+        isAssignedToMe = assigneeIds.includes(String(user.id)) || assigneeIds.some(id => Number(id) === user.id);
+      }
+      
+      console.log(`태스크 "${t.title}": projectId=${t.projectId}, assigneeId=${t.assigneeId}, userId=${user?.id}, isMyProject=${isMyProject}, isAssignedToMe=${isAssignedToMe}`);
+      return isMyProject && isAssignedToMe;
+    })
+    .map(t => {
     // 백엔드 상태 매핑
     let frontendStatus = t.status.toLowerCase().replace('_', '-');
     if (frontendStatus === 'review') frontendStatus = 'in-review';
@@ -231,7 +278,14 @@ export default function ProjectDashboard({ onProjectSelect, onCreateProject }: P
     };
   });
 
-  const upcomingDeadlines = assignedTasks.filter(t => t.dueDate && new Date(t.dueDate) > new Date());
+  // 임박한 마감일: 현재부터 7일 이내
+  const now = new Date();
+  const sevenDaysLater = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+  const upcomingDeadlines = assignedTasks.filter(t => {
+    if (!t.dueDate) return false;
+    const dueDate = new Date(t.dueDate);
+    return dueDate > now && dueDate <= sevenDaysLater;
+  });
 
   // Filter projects
   const filteredProjects = myProjects.filter(project => {
@@ -639,10 +693,12 @@ export default function ProjectDashboard({ onProjectSelect, onCreateProject }: P
                     </SelectContent>
                   </Select>
                 </div>
-                <Button onClick={onCreateProject}>
-                  <Plus className="w-4 h-4 mr-2" />
-                  새 프로젝트
-                </Button>
+                {!userIsMember && (
+                  <Button onClick={onCreateProject}>
+                    <Plus className="w-4 h-4 mr-2" />
+                    새 프로젝트
+                  </Button>
+                )}
               </div>
 
               {/* Projects Grid */}
@@ -739,7 +795,7 @@ export default function ProjectDashboard({ onProjectSelect, onCreateProject }: P
                       : '첫 번째 프로젝트를 만들어 시작해보세요.'
                     }
                   </p>
-                  {!searchQuery && statusFilter === 'all' && (
+                  {!searchQuery && statusFilter === 'all' && !userIsMember && (
                     <Button onClick={onCreateProject}>
                       프로젝트 만들기
                     </Button>

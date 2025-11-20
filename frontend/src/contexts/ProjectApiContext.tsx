@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { plmApi, Project, Task } from '../services/api';
 
 // 프론트엔드에서 사용하는 타입들을 백엔드 API 타입과 매핑
@@ -11,6 +11,7 @@ export interface ProjectContextType {
   
   // 프로젝트 관련 액션들
   loadProjects: () => Promise<void>;
+  loadUserProjects: (userId: number) => Promise<void>;
   loadProject: (id: number) => Promise<void>;
   createProject: (project: Omit<Project, 'id' | 'createdAt' | 'updatedAt'>) => Promise<void>;
   updateProject: (id: number, project: Partial<Project>) => Promise<void>;
@@ -67,12 +68,24 @@ export const ProjectApiProvider = ({ children }: ProjectApiProviderProps) => {
   };
 
   // 프로젝트 목록 로드
-  const loadProjects = async () => {
+  const loadProjects = useCallback(async () => {
+    console.log('ProjectApiContext - loadProjects called');
     const result = await handleApiCall(() => plmApi.getProjects());
+    console.log('ProjectApiContext - loadProjects result:', result);
     if (result) {
       setProjects(result);
     }
-  };
+  }, []);
+
+  // 사용자별 프로젝트 목록 로드
+  const loadUserProjects = useCallback(async (userId: number) => {
+    console.log('ProjectApiContext - loadUserProjects called with userId:', userId);
+    const result = await handleApiCall(() => plmApi.getUserProjects(userId));
+    console.log('ProjectApiContext - loadUserProjects result:', result);
+    if (result) {
+      setProjects(result);
+    }
+  }, []);
 
   // 특정 프로젝트 로드
   const loadProject = async (id: number) => {
@@ -161,11 +174,11 @@ export const ProjectApiProvider = ({ children }: ProjectApiProviderProps) => {
     return Math.round((completedTasks.length / projectTasks.length) * 100);
   };
 
-  // 초기 데이터 로드
-  useEffect(() => {
-    loadProjects();
-    loadTasks();
-  }, []);
+  // 초기 데이터 로드 - 제거 (각 컴포넌트에서 세션 기반으로 로드)
+  // useEffect(() => {
+  //   loadProjects();
+  //   loadTasks();
+  // }, []);
 
   const value: ProjectContextType = {
     projects,
@@ -174,6 +187,7 @@ export const ProjectApiProvider = ({ children }: ProjectApiProviderProps) => {
     loading,
     error,
     loadProjects,
+    loadUserProjects,
     loadProject,
     createProject,
     updateProject,

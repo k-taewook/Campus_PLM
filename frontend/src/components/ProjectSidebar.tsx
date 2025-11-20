@@ -57,7 +57,7 @@ export default function ProjectSidebar({
   showSettings,
   onShowSettings
 }: ProjectSidebarProps) {
-  const { user, logout: authLogout } = useAuth(); // AuthContext의 logout 사용
+  const { user, logout: authLogout, isAdmin } = useAuth(); // AuthContext의 logout과 권한 함수 사용
   const { 
     currentUser, 
     logout, 
@@ -296,7 +296,7 @@ export default function ProjectSidebar({
             <Users className="w-4 h-4" />
             {!isCollapsed && <span className="ml-2">팀 관리</span>}
           </Button>
-          {currentUser?.role === 'admin' && (
+          {isAdmin() && (
             <Button 
               variant={showAdminUserManagement ? "default" : "ghost"}
               className={`w-full ${isCollapsed ? 'justify-center px-0' : 'justify-start'}`}

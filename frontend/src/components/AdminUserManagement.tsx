@@ -26,6 +26,7 @@ import {
   Ban,
   Unlock
 } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -90,9 +91,9 @@ export default function AdminUserManagement() {
     'ADMIN', 'MANAGER', 'DEVELOPER', 'DESIGNER', 'TESTER', 'VIEWER'
   ];
 
-  // 권한 확인
-  const isAdmin = (currentUser?.role || '').toUpperCase() === 'ADMIN';
-  const canManageUsers = isAdmin;
+  // 권한 확인 - AuthContext에서 가져오기
+  const { isAdmin } = useAuth();
+  const canManageUsers = isAdmin();
 
   if (!canManageUsers) {
     return (
@@ -420,84 +421,6 @@ export default function AdminUserManagement() {
               시스템의 모든 사용자를 관리하고 모니터링하세요
             </p>
           </div>
-        </div>
-        
-        <div className="flex gap-2">
-          <Button variant="outline">
-            <Download className="w-4 h-4 mr-2" />
-            내보내기
-          </Button>
-          <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-            <DialogTrigger asChild>
-              <Button>
-                <UserPlus className="w-4 h-4 mr-2" />
-                사용자 추가
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>새 사용자 추가</DialogTitle>
-                <DialogDescription>
-                  새로운 사용자를 시스템에 등록합니다.
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4">
-                <div>
-                  <Label htmlFor="userName">이름</Label>
-                  <Input
-                    id="userName"
-                    value={newUser.name}
-                    onChange={(e) => setNewUser({...newUser, name: e.target.value})}
-                    placeholder="사용자 이름을 입력하세요"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="userEmail">이메일</Label>
-                  <Input
-                    id="userEmail"
-                    type="email"
-                    value={newUser.email}
-                    onChange={(e) => setNewUser({...newUser, email: e.target.value})}
-                    placeholder="이메일 주소를 입력하세요"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="userPassword">임시 비밀번호</Label>
-                  <Input
-                    id="userPassword"
-                    type="password"
-                    value={newUser.password}
-                    onChange={(e) => setNewUser({...newUser, password: e.target.value})}
-                    placeholder="(선택) 최소 8자, 미입력 시 Temp1234! 사용"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="userRole">역할</Label>
-                  <Select 
-                    value={newUser.role} 
-                    onValueChange={(value: any) => setNewUser({...newUser, role: value})}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {ROLE_OPTIONS.map((r) => (
-                        <SelectItem key={r} value={r}>{getRoleLabel(r)}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="flex justify-end gap-2">
-                  <Button variant="outline" onClick={() => setShowCreateDialog(false)}>
-                    취소
-                  </Button>
-                  <Button onClick={handleCreateUser}>
-                    추가
-                  </Button>
-                </div>
-              </div>
-            </DialogContent>
-          </Dialog>
         </div>
       </div>
 

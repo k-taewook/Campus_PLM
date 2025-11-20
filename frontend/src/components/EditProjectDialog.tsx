@@ -18,6 +18,7 @@ import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import { CalendarIcon, Trash2 } from 'lucide-react';
 import { toast } from 'sonner@2.0.3';
 import { useProjects, type Project } from '../contexts/ProjectContext';
+import { useAuth } from '../contexts/AuthContext';
 
 interface EditProjectDialogProps {
   open: boolean;
@@ -62,11 +63,12 @@ export default function EditProjectDialog({
     }
   }, [project, open]);
 
-  // 권한 체크
+  // 권한 체크 - AuthContext에서 가져오기
+  const { isAdmin } = useAuth();
   const canEdit = project ? canEditProject(project.id) : false;
   const canDelete = project && currentUser && (
     project.leadId === currentUser.id || 
-    currentUser.role === 'admin'
+    isAdmin()
   );
 
   const handleSubmit = async (e: React.FormEvent) => {

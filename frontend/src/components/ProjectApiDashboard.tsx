@@ -42,14 +42,38 @@ export default function ProjectApiDashboard({ onProjectSelect, onCreateProject }
     tasks, 
     loading, 
     error,
+    loadProjects,
+    loadUserProjects,
     getProjectProgress 
   } = useProjectApi();
   
-  const { user, isAdmin, canModifyTask } = useAuth();
+  const { user, isAdmin, isLeader, canModifyTask } = useAuth();
+  const userIsAdmin = isAdmin();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [sortBy, setSortBy] = useState<string>('updatedAt');
+
+  // 세션 기반으로 프로젝트 로드
+  useEffect(() => {
+    console.log('Dashboard useEffect - user:', user, 'isAdmin:', userIsAdmin);
+    const loadData = async () => {
+      if (user) {
+        if (userIsAdmin) {
+          // ADMIN은 모든 프로젝트 로드
+          console.log('Loading all projects for ADMIN');
+          await loadProjects();
+        } else {
+          // 일반 사용자는 본인이 속한 프로젝트만 로드
+          console.log('Loading user projects for userId:', user.id);
+          await loadUserProjects(user.id);
+        }
+      } else {
+        console.log('No user found, skipping project load');
+      }
+    };
+    loadData();
+  }, [user?.id, userIsAdmin, loadProjects, loadUserProjects]);
 
   // 상태별 색상 매핑
   const getStatusColor = (status: string) => {
@@ -74,51 +98,34 @@ export default function ProjectApiDashboard({ onProjectSelect, onCreateProject }
     }
   };
 
-  // 필터링된 프로젝트 목록 (권한에 따라 필터링)
+  // 필터링된 프로젝트 목록 (검색 및 상태 필터)
   const filteredProjects = projects.filter(project => {
     const matchesSearch = project.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
                          project.description?.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesStatus = statusFilter === 'all' || project.status === statusFilter;
     
-    // ADMIN이 아닌 경우 자신이 속한 프로젝트만 표시
-    let hasAccess = true;
-    if (!isAdmin() && user) {
-      // 프로젝트 멤버 API 호출이 필요하지만, 임시로 managerId 체크
-      hasAccess = project.managerId ? project.managerId === user.id.toString() : false;
-      // TODO: 프로젝트 멤버 API를 통해 실제 멤버십 확인
-    }
-    
-    return matchesSearch && matchesStatus && hasAccess;
+    return matchesSearch && matchesStatus;
   });
 
-  // 통계 계산 (권한에 따라 필터링된 프로젝트 기준)
-  const totalProjects = filteredProjects.length;
-  const activeProjects = filteredProjects.filter(p => p.status === 'ACTIVE').length;
-  const completedProjects = filteredProjects.filter(p => p.status === 'COMPLETED').length;
+  // 통계 계산 (본인이 속한 모든 프로젝트 기준 - 검색/필터 무관)
+  const totalProjects = projects.length;
+  const activeProjects = projects.filter(p => p.status === 'ACTIVE').length;
+  const completedProjects = projects.filter(p => p.status === 'COMPLETED').length;
   
-  // 태스크도 권한에 따라 필터링
-  const accessibleTasks = tasks.filter(task => {
-    const taskProject = projects.find(p => p.id === task.projectId);
-    if (!taskProject) return false;
-    
-    if (isAdmin()) return true;
-    if (!user) return false;
-    
-    // 자신이 속한 프로젝트의 태스크만
-    return taskProject.managerId ? taskProject.managerId === user.id.toString() : false;
-    // TODO: 프로젝트 멤버 API를 통해 실제 멤버십 확인
-  });
+  // 태스크도 권한에 따라 필터링 (속한 프로젝트의 태스크만)
+  const projectIds = new Set(projects.map(p => p.id));
+  const accessibleTasks = tasks.filter(task => projectIds.has(task.projectId));
   
   const totalTasks = accessibleTasks.length;
   const completedTasks = accessibleTasks.filter(t => t.status === 'DONE').length;
 
-  // 최근 업데이트된 프로젝트들
-  const recentProjects = [...projects]
+  // 최근 업데이트된 프로젝트들 (필터링된 프로젝트 기준)
+  const recentProjects = [...filteredProjects]
     .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
     .slice(0, 5);
 
-  // 마감이 임박한 태스크들
-  const upcomingTasks = tasks
+  // 마감이 임박한 태스크들 (접근 가능한 태스크만)
+  const upcomingTasks = accessibleTasks
     .filter(task => {
       if (!task.dueDate) return false;
       const dueDate = new Date(task.dueDate);
@@ -167,7 +174,7 @@ export default function ProjectApiDashboard({ onProjectSelect, onCreateProject }
           <h1 className="text-3xl font-bold text-gray-900">프로젝트 대시보드</h1>
           <p className="text-gray-600">진행 중인 프로젝트를 관리하고 모니터링하세요</p>
         </div>
-        {(isAdmin() || user?.role === 'LEADER') && (
+        {(isAdmin() || isLeader()) && (
           <Button onClick={onCreateProject} className="bg-blue-600 hover:bg-blue-700">
             <Plus className="h-4 w-4 mr-2" />
             새 프로젝트

@@ -41,11 +41,28 @@ export default function TeamManagement({ isCompact }: TeamManagementProps) {
   const [editMemberSearchQuery, setEditMemberSearchQuery] = useState('');
   const [editSelectedMembers, setEditSelectedMembers] = useState<number[]>([]);
   const [editUserRoles, setEditUserRoles] = useState<Record<number, 'OWNER' | 'ADMIN' | 'MEMBER' | 'VIEWER'>>({});
+  const [teamOwnerships, setTeamOwnerships] = useState<Record<number, boolean>>({});
   const { user: authUser } = useAuth();
+  
+  // 권한 체크 함수들을 컴포넌트 최상단에서 호출
+  const { isAdmin, isLeader, isMember } = useAuth();
+  const isSystemAdmin = isAdmin();
+  const isSystemLeader = isLeader();
+  const isSystemMember = isMember();
 
   const refreshTeams = async () => {
     const data = await plmApi.getTeams();
     setTeams(data);
+    
+    // 각 팀에 대한 소유권 확인
+    if (authUser && isSystemLeader) {
+      const ownerships: Record<number, boolean> = {};
+      for (const team of data) {
+        const members = await plmApi.getTeamMembers(team.id);
+        ownerships[team.id] = members.some(m => m.userId === authUser.id && m.role === 'OWNER');
+      }
+      setTeamOwnerships(ownerships);
+    }
   };
 
   const refreshUsers = async () => {
@@ -62,6 +79,16 @@ export default function TeamManagement({ isCompact }: TeamManagementProps) {
     refreshTeams();
     refreshUsers();
   }, []);
+
+  // 팀 생성 다이얼로그가 열릴 때 LEADER는 자동으로 본인을 선택 상태로 설정
+  useEffect(() => {
+    if (showCreateDialog && isSystemLeader && authUser) {
+      if (!selectedMembers.includes(authUser.id)) {
+        setSelectedMembers(prev => [...prev, authUser.id]);
+        setUserRoles(prev => ({ ...prev, [authUser.id]: 'OWNER' }));
+      }
+    }
+  }, [showCreateDialog, isSystemLeader, authUser]);
 
   useEffect(() => {
     if (selectedTeam) {
@@ -85,10 +112,17 @@ export default function TeamManagement({ isCompact }: TeamManagementProps) {
   }, [showEditDialog, selectedTeam, selectedTeamMembers]);
 
   const handleCreateTeam = async () => {
-    if (!newTeam.name) return;
+    if (!newTeam.name || !authUser) return;
     const created = await plmApi.createTeam({ name: newTeam.name, description: newTeam.description });
+    
+    // 팀 생성자를 OWNER로 자동 추가
+    await plmApi.addTeamMember(created.id, authUser.id, 'OWNER');
+    
+    // 추가 선택된 멤버들 추가
     if (selectedMembers.length > 0) {
       for (const uid of selectedMembers) {
+        // 생성자가 선택된 멤버에 포함되어 있으면 건너뛰기
+        if (uid === authUser.id) continue;
         const role = userRoles[uid] || defaultRole || 'MEMBER';
         await plmApi.addTeamMember(created.id, uid, role);
       }
@@ -102,6 +136,11 @@ export default function TeamManagement({ isCompact }: TeamManagementProps) {
   };
 
   const handleMemberToggle = (userId: number) => {
+    // LEADER가 팀 생성 시 본인을 제거할 수 없도록 방지
+    if (isSystemLeader && authUser && userId === authUser.id) {
+      return; // 본인은 제거 불가
+    }
+    
     setSelectedMembers(prev => 
       prev.includes(userId) 
         ? prev.filter(id => id !== userId)
@@ -143,8 +182,16 @@ export default function TeamManagement({ isCompact }: TeamManagementProps) {
 
   const selectedTeamData = teams.find(t => t.id === selectedTeam);
   const currentTeamRole = selectedTeamMembers.find(m => m.userId === authUser?.id)?.role as ('OWNER'|'ADMIN'|'MEMBER'|'VIEWER'|undefined);
-  const isSystemAdmin = authUser?.role === 'ADMIN';
-  const canManageTeam = isSystemAdmin || currentTeamRole === 'OWNER' || currentTeamRole === 'ADMIN';
+  
+  // 팀 소유권 확인: LEADER는 자신이 OWNER인 팀만 수정/삭제 가능
+  const isTeamOwner = selectedTeamData && authUser ? 
+    selectedTeamMembers.find(m => m.userId === authUser.id && m.role === 'OWNER') !== undefined : false;
+  
+  // 팀 관리 권한: ADMIN은 모든 팀, LEADER는 자신의 팀만
+  const canManageTeam = isSystemAdmin || (isSystemLeader && isTeamOwner) || currentTeamRole === 'ADMIN';
+  
+  // 팀 생성 권한: ADMIN과 LEADER만 가능
+  const canCreateTeam = isSystemAdmin || isSystemLeader;
 
   if (selectedTeam && selectedTeamData) {
     return (
@@ -167,13 +214,15 @@ export default function TeamManagement({ isCompact }: TeamManagementProps) {
         </div>
 
         <div className="flex items-center gap-2 mb-6">
-          <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
-            <DialogTrigger asChild>
-              <Button variant="outline" className="flex items-center gap-2" disabled={!canManageTeam}>
-                <Pencil className="w-4 h-4" />
-                팀 수정
-              </Button>
-            </DialogTrigger>
+          {canManageTeam && (
+            <>
+              <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+                <DialogTrigger asChild>
+                  <Button variant="outline" className="flex items-center gap-2">
+                    <Pencil className="w-4 h-4" />
+                    팀 수정
+                  </Button>
+                </DialogTrigger>
             <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
               <DialogHeader>
                 <DialogTitle>팀 정보 수정</DialogTitle>
@@ -314,7 +363,7 @@ export default function TeamManagement({ isCompact }: TeamManagementProps) {
 
           <AlertDialog>
             <AlertDialogTrigger asChild>
-              <Button variant="destructive" className="flex items-center gap-2" disabled={!canManageTeam}>
+              <Button variant="destructive" className="flex items-center gap-2">
                 <Trash2 className="w-4 h-4" />
                 삭제
               </Button>
@@ -339,6 +388,8 @@ export default function TeamManagement({ isCompact }: TeamManagementProps) {
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
+            </>
+          )}
         </div>
 
         {/* 필터/정렬 */}
@@ -403,36 +454,6 @@ export default function TeamManagement({ isCompact }: TeamManagementProps) {
                         </Badge>
                       </div>
                     </div>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="sm" className="h-6 w-6 p-1">
-                          <MoreHorizontal className="w-4 h-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuLabel>멤버 작업</DropdownMenuLabel>
-                        <DropdownMenuItem onClick={() => {
-                          alert(`프로필 보기: ${member.userFullName || member.username}`);
-                        }}>프로필 보기</DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem disabled={!canManageTeam} onClick={async () => {
-                          if (!selectedTeam) return;
-                          await plmApi.removeTeamMember(selectedTeam, member.userId);
-                          await loadTeamMembers(selectedTeam);
-                          await refreshTeams();
-                        }}>멤버 제외</DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuSub>
-                          <DropdownMenuSubTrigger disabled={!canManageTeam}>역할 변경</DropdownMenuSubTrigger>
-                          <DropdownMenuSubContent>
-                            <DropdownMenuItem onClick={async () => { if (!selectedTeam) return; await plmApi.updateMemberRole(selectedTeam, member.userId, 'OWNER'); await loadTeamMembers(selectedTeam); }}>OWNER</DropdownMenuItem>
-                            <DropdownMenuItem onClick={async () => { if (!selectedTeam) return; await plmApi.updateMemberRole(selectedTeam, member.userId, 'ADMIN'); await loadTeamMembers(selectedTeam); }}>ADMIN</DropdownMenuItem>
-                            <DropdownMenuItem onClick={async () => { if (!selectedTeam) return; await plmApi.updateMemberRole(selectedTeam, member.userId, 'MEMBER'); await loadTeamMembers(selectedTeam); }}>MEMBER</DropdownMenuItem>
-                            <DropdownMenuItem onClick={async () => { if (!selectedTeam) return; await plmApi.updateMemberRole(selectedTeam, member.userId, 'VIEWER'); await loadTeamMembers(selectedTeam); }}>VIEWER</DropdownMenuItem>
-                          </DropdownMenuSubContent>
-                        </DropdownMenuSub>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-3">
@@ -467,13 +488,14 @@ export default function TeamManagement({ isCompact }: TeamManagementProps) {
           </p>
         </div>
         
-        <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-          <DialogTrigger asChild>
-            <Button className="flex items-center gap-2">
-              <Plus className="w-4 h-4" />
-              팀 생성
-            </Button>
-          </DialogTrigger>
+        {canCreateTeam && (
+          <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+            <DialogTrigger asChild>
+              <Button className="flex items-center gap-2">
+                <Plus className="w-4 h-4" />
+                팀 생성
+              </Button>
+            </DialogTrigger>
           <DialogContent className="max-w-2xl">
             <DialogHeader>
               <DialogTitle>새 팀 생성</DialogTitle>
@@ -560,22 +582,29 @@ export default function TeamManagement({ isCompact }: TeamManagementProps) {
                     const checked = selectedMembers.includes(user.id);
                     const assignedRole = userRoles[user.id] || defaultRole;
                     const RoleIcon = getRoleIcon(assignedRole.toLowerCase());
+                    const isCurrentUser = authUser && user.id === authUser.id;
+                    const isMandatory = isSystemLeader && isCurrentUser;
+                    
                     return (
                       <div key={user.id} className="flex items-center gap-3">
                         <Checkbox 
                           id={String(user.id)}
                           checked={checked}
                           onCheckedChange={() => handleMemberToggle(user.id)}
+                          disabled={isMandatory}
                         />
                         <div className="flex items-center gap-2 flex-1">
                           <Avatar className="w-8 h-8">
                             <AvatarFallback className="bg-blue-100 text-blue-600">
-                              {user.fullName?.charAt(0) || user.username?.charAt(0) || 'U'}
+                              {user.fullName?.charAt(0) || user.username.charAt(0)}
                             </AvatarFallback>
                           </Avatar>
-                          <div className="min-w-0">
-                            <p className="text-sm font-medium truncate">{user.fullName || user.username}</p>
-                            <p className="text-xs text-muted-foreground truncate">{user.email}</p>
+                          <div className="flex-1">
+                            <div className="text-sm font-medium flex items-center gap-2">
+                              {user.fullName || user.username}
+                              {isMandatory && <Badge variant="outline" className="text-xs">필수</Badge>}
+                            </div>
+                            <div className="text-xs text-muted-foreground">{user.email}</div>
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
@@ -612,6 +641,7 @@ export default function TeamManagement({ isCompact }: TeamManagementProps) {
             </div>
           </DialogContent>
         </Dialog>
+        )}
       </div>
 
       <div className={`
@@ -622,6 +652,8 @@ export default function TeamManagement({ isCompact }: TeamManagementProps) {
         }
       `}>
         {teams.map((team) => {
+          // 각 팀에 대한 권한 확인
+          const canEditThisTeam = isSystemAdmin || (isSystemLeader && teamOwnerships[team.id]);
           
           return (
             <Card 
@@ -650,13 +682,26 @@ export default function TeamManagement({ isCompact }: TeamManagementProps) {
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" onClick={(e: React.MouseEvent) => e.stopPropagation()}>
                       <DropdownMenuItem onClick={async () => { setSelectedTeam(team.id); await loadTeamMembers(team.id); }}>팀 보기</DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => { setSelectedTeam(team.id); setEditTeam({ name: team.name, description: team.description || '' }); setShowEditDialog(true); }}>팀 수정</DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem className="text-red-600" onClick={async () => {
-                        if (!confirm('이 팀을 삭제하시겠습니까?')) return;
-                        await plmApi.deleteTeam(team.id);
-                        await refreshTeams();
-                      }}>삭제</DropdownMenuItem>
+                      {canEditThisTeam && (
+                        <>
+                          <DropdownMenuItem 
+                            onClick={() => { setSelectedTeam(team.id); setEditTeam({ name: team.name, description: team.description || '' }); setShowEditDialog(true); }}
+                          >
+                            팀 수정
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem 
+                            className="text-red-600" 
+                            onClick={async () => {
+                              if (!confirm('이 팀을 삭제하시겠습니까?')) return;
+                              await plmApi.deleteTeam(team.id);
+                              await refreshTeams();
+                            }}
+                          >
+                            삭제
+                          </DropdownMenuItem>
+                        </>
+                      )}
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </div>
@@ -681,11 +726,15 @@ export default function TeamManagement({ isCompact }: TeamManagementProps) {
           <Users className="w-16 h-16 mx-auto text-muted-foreground mb-4" />
           <h3 className="mb-2">팀이 없습니다</h3>
           <p className="text-muted-foreground mb-6">
-            첫 번째 팀을 생성하여 협업을 시작해보세요.
+            {canCreateTeam 
+              ? '첫 번째 팀을 생성하여 협업을 시작해보세요.'
+              : '현재 소속된 팀이 없습니다.'}
           </p>
-          <Button onClick={() => setShowCreateDialog(true)}>
-            팀 생성
-          </Button>
+          {canCreateTeam && (
+            <Button onClick={() => setShowCreateDialog(true)}>
+              팀 생성
+            </Button>
+          )}
         </div>
       )}
     </div>
