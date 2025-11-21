@@ -7,8 +7,13 @@ export interface User {
   name: string;
   email: string;
   avatar?: string;
-  role: 'admin' | 'manager' | 'member';
-  dbRole?: 'ADMIN' | 'MANAGER' | 'DEVELOPER' | 'DESIGNER' | 'TESTER' | 'VIEWER';
+  // 화면에서 사용하는 단순 역할 (백엔드 UserRole 과 매핑)
+  // - ADMIN  -> 'admin'
+  // - LEADER -> 'leader'
+  // - MEMBER -> 'member'
+  role: 'admin' | 'leader' | 'member';
+  // 백엔드 enum 값 그대로
+  dbRole?: 'ADMIN' | 'LEADER' | 'MEMBER';
    status?: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED' | 'DELETED';
   createdAt: string;
   lastActive: string;
@@ -61,7 +66,9 @@ export interface Task {
 
 export interface ProjectMember {
   userId: string;
-  role: 'lead' | 'admin' | 'developer' | 'designer' | 'tester' | 'viewer';
+  // 프로젝트 단위 역할: 리더(프로젝트 리드) / 일반 멤버
+  // 시스템 관리자(admin)는 전역 UserRole로만 관리하고, 프로젝트 멤버 역할에는 포함하지 않음
+  role: 'lead' | 'member';
   joinedAt: string;
   addedBy: string;
   permissions: {
@@ -202,8 +209,8 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
         name: user.fullName || user.username || '이름 없음',
         email: user.email || '',
         dbRole: user.role,
-        role: user.role === 'ADMIN' ? 'admin' : 
-              user.role === 'MANAGER' ? 'manager' : 'member',
+        role: user.role === 'ADMIN'  ? 'admin'  :
+              user.role === 'LEADER' ? 'leader' : 'member',
         status: user.status,
         createdAt: user.createdAt || new Date().toISOString(),
         lastActive: user.updatedAt || new Date().toISOString()
@@ -230,8 +237,8 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
         email: authUser.email,
         avatar: authUser.profileImageUrl,
         dbRole: authUser.role,
-        role: authUser.role === 'ADMIN' ? 'admin' : 
-              authUser.role === 'MANAGER' ? 'manager' : 'member',
+        role: authUser.role === 'ADMIN'  ? 'admin'  :
+              authUser.role === 'LEADER' ? 'leader' : 'member',
         status: authUser.status,
         createdAt: new Date().toISOString(),
         lastActive: new Date().toISOString()
@@ -266,7 +273,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       members: [
         {
           userId: 'user-1',
-          role: 'lead',
+          role: 'lead', // 프로젝트 리더
           joinedAt: '2024-02-15',
           addedBy: 'user-1',
           permissions: {
@@ -281,7 +288,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
         },
         {
           userId: 'user-2',
-          role: 'developer',
+          role: 'member',
           joinedAt: '2024-02-16',
           addedBy: 'user-1',
           permissions: {
@@ -296,7 +303,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
         },
         {
           userId: 'user-3',
-          role: 'designer',
+          role: 'member',
           joinedAt: '2024-02-17',
           addedBy: 'user-1',
           permissions: {
@@ -311,10 +318,11 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
         },
         {
           userId: 'user-4',
-          role: 'admin',
+          role: 'member',
           joinedAt: '2024-02-18',
           addedBy: 'user-1',
           permissions: {
+            // 이 사용자는 멤버지만, 예시용으로 리더와 동일한 권한을 부여
             canEditProject: true,
             canManageMembers: true,
             canCreateTasks: true,
@@ -326,7 +334,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
         },
         {
           userId: 'user-5',
-          role: 'developer',
+          role: 'member',
           joinedAt: '2024-03-15',
           addedBy: 'user-1',
           permissions: {
@@ -632,7 +640,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
         },
         {
           userId: 'user-2',
-          role: 'developer',
+          role: 'member',
           joinedAt: '2024-03-02',
           addedBy: 'user-4',
           permissions: {
@@ -647,7 +655,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
         },
         {
           userId: 'user-3',
-          role: 'designer',
+          role: 'member',
           joinedAt: '2024-03-03',
           addedBy: 'user-4',
           permissions: {
@@ -787,6 +795,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   const getDefaultPermissions = (role: ProjectMember['role']): ProjectMember['permissions'] => {
     switch (role) {
       case 'lead':
+        // 프로젝트 리더: 프로젝트 내 모든 권한
         return {
           canEditProject: true,
           canManageMembers: true,
@@ -796,65 +805,17 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
           canManageSettings: true,
           canViewReports: true
         };
-      case 'admin':
-        return {
-          canEditProject: true,
-          canManageMembers: true,
-          canCreateTasks: true,
-          canEditAllTasks: true,
-          canDeleteTasks: true,
-          canManageSettings: true,
-          canViewReports: true
-        };
-      case 'developer':
-        return {
-          canEditProject: false,
-          canManageMembers: false,
-          canCreateTasks: true,
-          canEditAllTasks: false,
-          canDeleteTasks: false,
-          canManageSettings: false,
-          canViewReports: true
-        };
-      case 'designer':
-        return {
-          canEditProject: false,
-          canManageMembers: false,
-          canCreateTasks: true,
-          canEditAllTasks: false,
-          canDeleteTasks: false,
-          canManageSettings: false,
-          canViewReports: true
-        };
-      case 'tester':
-        return {
-          canEditProject: false,
-          canManageMembers: false,
-          canCreateTasks: true,
-          canEditAllTasks: false,
-          canDeleteTasks: false,
-          canManageSettings: false,
-          canViewReports: true
-        };
-      case 'viewer':
-        return {
-          canEditProject: false,
-          canManageMembers: false,
-          canCreateTasks: false,
-          canEditAllTasks: false,
-          canDeleteTasks: false,
-          canManageSettings: false,
-          canViewReports: true
-        };
+      case 'member':
       default:
+        // 일반 멤버: 기본적인 작업 권한만
         return {
           canEditProject: false,
           canManageMembers: false,
-          canCreateTasks: false,
+          canCreateTasks: true,
           canEditAllTasks: false,
           canDeleteTasks: false,
           canManageSettings: false,
-          canViewReports: false
+          canViewReports: true
         };
     }
   };

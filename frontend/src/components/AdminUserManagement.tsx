@@ -74,7 +74,8 @@ export default function AdminUserManagement() {
     name: '',
     email: '',
     password: '',
-    role: 'VIEWER' as 'ADMIN' | 'MANAGER' | 'DEVELOPER' | 'DESIGNER' | 'TESTER' | 'VIEWER',
+    // 백엔드 UserRole: ADMIN | LEADER | MEMBER 에 맞춰 단순화
+    role: 'MEMBER' as 'ADMIN' | 'LEADER' | 'MEMBER',
     status: 'ACTIVE' as 'ACTIVE' | 'INACTIVE' | 'SUSPENDED'
   });
 
@@ -83,12 +84,12 @@ export default function AdminUserManagement() {
     id: '',
     name: '',
     email: '',
-    role: 'VIEWER' as 'ADMIN' | 'MANAGER' | 'DEVELOPER' | 'DESIGNER' | 'TESTER' | 'VIEWER',
+    role: 'MEMBER' as 'ADMIN' | 'LEADER' | 'MEMBER',
     status: 'ACTIVE' as 'ACTIVE' | 'INACTIVE' | 'SUSPENDED'
   });
 
-  const ROLE_OPTIONS: Array<'ADMIN' | 'MANAGER' | 'DEVELOPER' | 'DESIGNER' | 'TESTER' | 'VIEWER'> = [
-    'ADMIN', 'MANAGER', 'DEVELOPER', 'DESIGNER', 'TESTER', 'VIEWER'
+  const ROLE_OPTIONS: Array<'ADMIN' | 'LEADER' | 'MEMBER'> = [
+    'ADMIN', 'LEADER', 'MEMBER'
   ];
 
   // 권한 확인 - AuthContext에서 가져오기
@@ -116,7 +117,7 @@ export default function AdminUserManagement() {
       new Date(u.lastActive) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
     ).length;
     const adminUsers = users.filter(u => u.role === 'admin').length;
-    const managerUsers = users.filter(u => u.role === 'manager').length;
+    const leaderUsers = users.filter(u => u.role === 'leader').length;
     const memberUsers = users.filter(u => u.role === 'member').length;
     const recentJoins = users.filter(u => u.createdAt && 
       new Date(u.createdAt) > new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
@@ -126,7 +127,7 @@ export default function AdminUserManagement() {
       totalUsers,
       activeUsers,
       adminUsers,
-      managerUsers,
+      leaderUsers,
       memberUsers,
       recentJoins,
       inactiveUsers: totalUsers - activeUsers
@@ -188,11 +189,8 @@ export default function AdminUserManagement() {
   const getRoleIcon = (role: string) => {
     switch (role) {
       case 'ADMIN': return Shield;
-      case 'MANAGER': return Users;
-      case 'DEVELOPER': return Users;
-      case 'DESIGNER': return Users;
-      case 'TESTER': return Users;
-      case 'VIEWER': return Users;
+      case 'LEADER': return Users;
+      case 'MEMBER': return Users;
       default: return Users;
     }
   };
@@ -200,11 +198,8 @@ export default function AdminUserManagement() {
   const getRoleColor = (role: string) => {
     switch (role) {
       case 'ADMIN': return 'bg-red-100 text-red-800';
-      case 'MANAGER': return 'bg-blue-100 text-blue-800';
-      case 'DEVELOPER': return 'bg-emerald-100 text-emerald-800';
-      case 'DESIGNER': return 'bg-pink-100 text-pink-800';
-      case 'TESTER': return 'bg-yellow-100 text-yellow-800';
-      case 'VIEWER': return 'bg-gray-100 text-gray-800';
+      case 'LEADER': return 'bg-blue-100 text-blue-800';
+      case 'MEMBER': return 'bg-gray-100 text-gray-800';
       default: return 'bg-gray-100 text-gray-800';
     }
   };
@@ -212,11 +207,8 @@ export default function AdminUserManagement() {
   const getRoleLabel = (role: string) => {
     switch (role) {
       case 'ADMIN': return '관리자';
-      case 'MANAGER': return '매니저';
-      case 'DEVELOPER': return '개발자';
-      case 'DESIGNER': return '디자이너';
-      case 'TESTER': return '테스터';
-      case 'VIEWER': return '뷰어';
+      case 'LEADER': return '리더';
+      case 'MEMBER': return '멤버';
       default: return role;
     }
   };
@@ -281,15 +273,15 @@ export default function AdminUserManagement() {
         password: passwordToUse,
         fullName: newUser.name,
       });
-      // 2) 선택한 역할로 업데이트 (기본 VIEWER가 아닐 때)
-      if (newUser.role && newUser.role !== 'VIEWER') {
+      // 2) 선택한 역할로 업데이트 (기본 MEMBER가 아닐 때)
+      if (newUser.role && newUser.role !== 'MEMBER') {
         await plmApi.updateUser(Number(created.id), { role: newUser.role } as any);
       }
       await reloadUsers();
     } catch (e) {
       console.error('사용자 생성 실패', e);
     } finally {
-      setNewUser({ name: '', email: '', password: '', role: 'VIEWER', status: 'ACTIVE' });
+      setNewUser({ name: '', email: '', password: '', role: 'MEMBER', status: 'ACTIVE' });
       setShowCreateDialog(false);
     }
   };
@@ -299,7 +291,7 @@ export default function AdminUserManagement() {
       id: user.id,
       name: user.name,
       email: user.email,
-      role: (user.dbRole || (typeof user.role === 'string' ? user.role.toUpperCase() : 'VIEWER')) as typeof editingUser.role,
+      role: (user.dbRole || (typeof user.role === 'string' ? user.role.toUpperCase() : 'MEMBER')) as typeof editingUser.role,
       status: ((user.status || user.dbStatus || 'ACTIVE').toUpperCase() === 'ACTIVE' ? 'ACTIVE' : 'INACTIVE')
     });
     setShowEditDialog(true);
@@ -516,7 +508,7 @@ export default function AdminUserManagement() {
                     <SelectContent>
                       <SelectItem value="all">전체 역할</SelectItem>
                       <SelectItem value="admin">관리자</SelectItem>
-                      <SelectItem value="manager">매니저</SelectItem>
+                      <SelectItem value="leader">리더</SelectItem>
                       <SelectItem value="member">멤버</SelectItem>
                     </SelectContent>
                   </Select>
@@ -698,15 +690,15 @@ export default function AdminUserManagement() {
                     </div>
                   </div>
                   <div className="flex justify-between items-center">
-                    <span>매니저</span>
+                    <span>리더</span>
                     <div className="flex items-center gap-2">
                       <div className="w-20 h-2 bg-gray-200 rounded-full overflow-hidden">
                         <div 
                           className="h-full bg-blue-500"
-                          style={{ width: `${(userStats.managerUsers / userStats.totalUsers) * 100}%` }}
+                          style={{ width: `${(userStats.leaderUsers / userStats.totalUsers) * 100}%` }}
                         />
                       </div>
-                      <span className="text-sm">{userStats.managerUsers}</span>
+                      <span className="text-sm">{userStats.leaderUsers}</span>
                     </div>
                   </div>
                   <div className="flex justify-between items-center">

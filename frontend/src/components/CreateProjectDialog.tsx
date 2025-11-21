@@ -37,10 +37,10 @@ export default function CreateProjectDialog({ open, onOpenChange, onProjectCreat
   const [memberSearchQuery, setMemberSearchQuery] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // 사용자 목록이 로드되면 첫 번째 admin/manager를 기본 리드로 설정
+  // 사용자 목록이 로드되면 첫 번째 admin/leader를 기본 리드로 설정
   useEffect(() => {
     if (users.length > 0 && !formData.leadId) {
-      const defaultLead = users.find(u => u.role === 'admin' || u.role === 'manager');
+      const defaultLead = users.find(u => u.role === 'admin' || u.role === 'leader');
       if (defaultLead) {
         setFormData(prev => ({
           ...prev,
@@ -120,7 +120,7 @@ export default function CreateProjectDialog({ open, onOpenChange, onProjectCreat
       }
 
       // Reset form - 기본 리드로 리셋
-      const defaultLead = users.find(u => u.role === 'admin' || u.role === 'manager');
+      const defaultLead = users.find(u => u.role === 'admin' || u.role === 'leader');
       setFormData({
         name: '',
         description: '',
@@ -314,7 +314,7 @@ export default function CreateProjectDialog({ open, onOpenChange, onProjectCreat
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {users.filter(user => user.role === 'admin' || user.role === 'manager').map(user => (
+                  {users.filter(user => user.role === 'admin' || user.role === 'leader').map(user => (
                     <SelectItem key={user.id} value={user.id}>
                       {user.name} ({user.role})
                     </SelectItem>

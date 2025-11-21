@@ -46,7 +46,8 @@ export default function ProjectSettings({ projectId, onClose }: ProjectSettingsP
 
   const [showAddMember, setShowAddMember] = useState(false);
   const [newMemberEmail, setNewMemberEmail] = useState('');
-  const [newMemberRole, setNewMemberRole] = useState<ProjectMember['role']>('developer');
+  // 새 멤버 기본 역할: 멤버
+  const [newMemberRole, setNewMemberRole] = useState<ProjectMember['role']>('member');
   const [editingPermissions, setEditingPermissions] = useState<string | null>(null);
   const [showEditProject, setShowEditProject] = useState(false);
 
@@ -68,7 +69,7 @@ export default function ProjectSettings({ projectId, onClose }: ProjectSettingsP
     if (user && !project.members.some(m => m.userId === user.id)) {
       addProjectMember(projectId, user.id, newMemberRole);
       setNewMemberEmail('');
-      setNewMemberRole('developer');
+      setNewMemberRole('member');
       setShowAddMember(false);
     }
   };
@@ -91,10 +92,6 @@ export default function ProjectSettings({ projectId, onClose }: ProjectSettingsP
     switch (role) {
       case 'lead': return 'bg-purple-100 text-purple-800 border-purple-200';
       case 'admin': return 'bg-red-100 text-red-800 border-red-200';
-      case 'developer': return 'bg-blue-100 text-blue-800 border-blue-200';
-      case 'designer': return 'bg-green-100 text-green-800 border-green-200';
-      case 'tester': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
-      case 'viewer': return 'bg-gray-100 text-gray-800 border-gray-200';
       default: return 'bg-gray-100 text-gray-800 border-gray-200';
     }
   };
@@ -109,13 +106,9 @@ export default function ProjectSettings({ projectId, onClose }: ProjectSettingsP
 
   const getRoleName = (role: ProjectMember['role']) => {
     switch (role) {
-      case 'lead': return '리드';
+      case 'lead': return '리더';
       case 'admin': return '관리자';
-      case 'developer': return '개발자';
-      case 'designer': return '디자이너';
-      case 'tester': return '테스터';
-      case 'viewer': return '뷰어';
-      default: return role;
+      default: return '멤버';
     }
   };
 
@@ -205,27 +198,10 @@ export default function ProjectSettings({ projectId, onClose }: ProjectSettingsP
                       <p>참여일: {new Date(member.joinedAt).toLocaleDateString('ko-KR')}</p>
                     </div>
 
-                    {/* Role Change */}
-                    {canEditMember && (
-                      <div className="mb-3">
-                        <Label className="text-sm">역할</Label>
-                        <Select 
-                          value={member.role} 
-                          onValueChange={(value: ProjectMember['role']) => handleRoleChange(member.userId, value)}
-                        >
-                          <SelectTrigger className="w-48 mt-1">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="admin">관리자</SelectItem>
-                            <SelectItem value="developer">개발자</SelectItem>
-                            <SelectItem value="designer">디자이너</SelectItem>
-                            <SelectItem value="tester">테스터</SelectItem>
-                            <SelectItem value="viewer">뷰어</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    )}
+                    {/* Role Change
+                        시스템 관리자(admin)는 전역 역할이므로
+                        프로젝트 멤버 역할은 리더/멤버 두 가지로만 고정합니다.
+                        세부 권한 조정은 아래 '권한' 체크박스로만 처리합니다. */}
 
                     {/* Permissions */}
                     <div className="space-y-2">
@@ -337,10 +313,7 @@ export default function ProjectSettings({ projectId, onClose }: ProjectSettingsP
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="admin">관리자</SelectItem>
-                  <SelectItem value="developer">개발자</SelectItem>
-                  <SelectItem value="designer">디자이너</SelectItem>
-                  <SelectItem value="tester">테스터</SelectItem>
-                  <SelectItem value="viewer">뷰어</SelectItem>
+                  <SelectItem value="member">멤버</SelectItem>
                 </SelectContent>
               </Select>
             </div>

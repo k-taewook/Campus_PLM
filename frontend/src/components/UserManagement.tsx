@@ -40,7 +40,7 @@ export default function UserManagement({ isCompact }: UserManagementProps) {
   const getRoleIcon = (role: string) => {
     switch (role) {
       case 'admin': return Crown;
-      case 'manager': return UserPlus;
+      case 'leader': return UserPlus;
       default: return User;
     }
   };
@@ -48,7 +48,7 @@ export default function UserManagement({ isCompact }: UserManagementProps) {
   const getRoleColor = (role: string) => {
     switch (role) {
       case 'admin': return 'bg-red-100 text-red-800';
-      case 'manager': return 'bg-blue-100 text-blue-800';
+      case 'leader': return 'bg-blue-100 text-blue-800';
       default: return 'bg-gray-100 text-gray-800';
     }
   };
@@ -56,7 +56,7 @@ export default function UserManagement({ isCompact }: UserManagementProps) {
   const getRoleLabel = (role: string) => {
     switch (role) {
       case 'admin': return '관리자';
-      case 'manager': return '매니저';
+      case 'leader': return '리더';
       default: return '멤버';
     }
   };
@@ -92,7 +92,7 @@ export default function UserManagement({ isCompact }: UserManagementProps) {
   // 역할별 통계
   const roleStats = {
     admin: users.filter(u => u.role === 'admin').length,
-    manager: users.filter(u => u.role === 'manager').length,
+    leader: users.filter(u => u.role === 'leader').length,
     member: users.filter(u => u.role === 'member').length
   };
 
@@ -196,7 +196,7 @@ export default function UserManagement({ isCompact }: UserManagementProps) {
               <UserPlus className="w-5 h-5 text-blue-600" />
               <div>
                 <p className="text-sm text-muted-foreground">매니저</p>
-                <p className="text-2xl font-bold">{roleStats.manager}</p>
+                <p className="text-2xl font-bold">{roleStats.leader}</p>
               </div>
             </div>
           </CardContent>
@@ -233,7 +233,7 @@ export default function UserManagement({ isCompact }: UserManagementProps) {
           <SelectContent>
             <SelectItem value="all">전체 역할</SelectItem>
             <SelectItem value="admin">관리자</SelectItem>
-            <SelectItem value="manager">매니저</SelectItem>
+            <SelectItem value="leader">리더</SelectItem>
             <SelectItem value="member">멤버</SelectItem>
           </SelectContent>
         </Select>

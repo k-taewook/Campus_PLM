@@ -811,6 +811,12 @@ function EditProjectDialogSimple({ projectId, onClose, onProjectUpdated }: {
       } catch (memberError) {
         console.error('프로젝트 멤버 로드 실패:', memberError);
       }
+
+      const managerIdStr = project.managerId?.toString() || '';
+      // 리더(프로젝트 매니저)가 멤버 목록에 없다면 자동으로 포함시켜 고아 프로젝트를 방지
+      if (managerIdStr && !memberIds.includes(managerIdStr)) {
+        memberIds.push(managerIdStr);
+      }
       
       setFormData({
         name: project.name,
@@ -819,7 +825,7 @@ function EditProjectDialogSimple({ projectId, onClose, onProjectUpdated }: {
         status: project.status,
         startDate: project.startDate ? project.startDate.split('T')[0] : '',
         endDate: project.endDate ? project.endDate.split('T')[0] : '',
-        managerId: project.managerId?.toString() || '',
+        managerId: managerIdStr,
         teamMembers: memberIds
       });
     } catch (error) {
@@ -909,6 +915,14 @@ function EditProjectDialogSimple({ projectId, onClose, onProjectUpdated }: {
     }));
   };
 
+  // 프로젝트 리드 후보: 시스템 역할이 ADMIN 또는 LEADER 인 사용자만
+  const leadCandidates = contextUsers.filter(user => {
+    const dbRole = (user as any).dbRole as string | undefined;
+    const uiRole = (user as any).role as string | undefined;
+    const upper = (dbRole || uiRole || '').toUpperCase();
+    return upper === 'ADMIN' || upper === 'LEADER';
+  });
+
   // 검색어에 따라 사용자 필터링 (프로젝트 리드로 선택된 사람 제외)
   const filteredUsers = contextUsers.filter(user => {
     // 프로젝트 리드로 선택된 사람은 제외
@@ -924,6 +938,23 @@ function EditProjectDialogSimple({ projectId, onClose, onProjectUpdated }: {
   const selectedMembers = contextUsers.filter(user => 
     formData.teamMembers.includes(user.id)
   );
+
+  // 프로젝트 리드 변경 시:
+  // - 리더 후보 중에서만 선택 가능
+  // - 선택된 사용자가 팀 멤버에 없다면 자동으로 포함
+  const handleLeadChange = (newLeadId: string) => {
+    setFormData(prev => {
+      let teamMembers = prev.teamMembers;
+      if (!teamMembers.includes(newLeadId)) {
+        teamMembers = [...teamMembers, newLeadId];
+      }
+      return {
+        ...prev,
+        managerId: newLeadId,
+        teamMembers
+      };
+    });
+  };
 
   if (loading) {
     return (
@@ -1000,12 +1031,15 @@ function EditProjectDialogSimple({ projectId, onClose, onProjectUpdated }: {
 
             <div>
               <Label htmlFor="lead">프로젝트 리드</Label>
-              <Select value={formData.managerId} onValueChange={(value: string) => setFormData({ ...formData, managerId: value })}>
+              <Select 
+                value={formData.managerId} 
+                onValueChange={handleLeadChange}
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="리드를 선택하세요" />
                 </SelectTrigger>
                 <SelectContent>
-                  {contextUsers.map(user => (
+                  {leadCandidates.map(user => (
                     <SelectItem key={user.id} value={user.id}>
                       {user.name}
                       {user.id === currentUser?.id && ' (나)'}

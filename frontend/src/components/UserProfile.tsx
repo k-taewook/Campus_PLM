@@ -114,7 +114,7 @@ export default function UserProfile({ userId }: UserProfileProps) {
   const getRoleIcon = (role: string) => {
     switch (role) {
       case 'admin': return Shield;
-      case 'manager': return Users;
+      case 'leader': return Users;
       default: return User;
     }
   };
@@ -122,7 +122,7 @@ export default function UserProfile({ userId }: UserProfileProps) {
   const getRoleColor = (role: string) => {
     switch (role) {
       case 'admin': return 'bg-red-100 text-red-800';
-      case 'manager': return 'bg-blue-100 text-blue-800';
+      case 'leader': return 'bg-blue-100 text-blue-800';
       default: return 'bg-gray-100 text-gray-800';
     }
   };
@@ -130,20 +130,16 @@ export default function UserProfile({ userId }: UserProfileProps) {
   const getRoleLabel = (role: string) => {
     switch (role) {
       case 'admin': return '관리자';
-      case 'manager': return '매니저';
+      case 'leader': return '리더';
       default: return '멤버';
     }
   };
 
   const getProjectRoleLabel = (role: string) => {
     switch (role) {
-      case 'lead': return '리드';
+      case 'lead': return '리더';
       case 'admin': return '관리자';
-      case 'developer': return '개발자';
-      case 'designer': return '디자이너';
-      case 'tester': return '테스터';
-      case 'viewer': return '뷰어';
-      default: return role;
+      default: return '멤버';
     }
   };
 

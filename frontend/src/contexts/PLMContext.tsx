@@ -4,7 +4,7 @@ export interface User {
   id: string;
   name: string;
   email: string;
-  role: 'admin' | 'manager' | 'member';
+  role: 'admin' | 'leader' | 'member';
   avatar?: string;
   joinDate: string;
   lastActive: string;
@@ -113,7 +113,7 @@ export function PLMProvider({ children }: { children: ReactNode }) {
       id: 'user-2',
       name: '이팀장',
       email: 'team.leader@company.com',
-      role: 'manager',
+      role: 'leader',
       joinDate: '2024-01-15',
       lastActive: '2024-03-10T14:30:00Z'
     },
