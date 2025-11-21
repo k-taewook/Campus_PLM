@@ -32,6 +32,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from './ui/dropdown-menu';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
 import { Checkbox } from './ui/checkbox';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { useProjects, type Project, type Task } from '../contexts/ProjectContext';
 import { useAuth } from '../contexts/AuthContext';
 import TaskDetail from './TaskDetail';
@@ -86,7 +87,9 @@ export default function ProjectBoard({ projectId, onBack }: ProjectBoardProps) {
       
       const [projectRes, tasksRes] = await Promise.all([
         api.get(`/projects/${projectId}`),
-        api.get(`/projects/${projectId}/tasks`)  // 경로 수정
+        api.get(`/projects/${projectId}/tasks`, {
+          params: { userId: currentUser?.id }
+        })  // 프로젝트 태스크 조회 시 읽기 권한 체크를 위해 userId 전달
       ]);
       
       console.log('프로젝트 응답:', projectRes.data);
@@ -467,23 +470,43 @@ export default function ProjectBoard({ projectId, onBack }: ProjectBoardProps) {
               <User className="w-4 h-4 text-gray-400" />
               <span className="text-sm">리드: {lead?.name}</span>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="text-sm">팀원: {teamMembers.length}명</span>
-              <div className="flex -space-x-1">
-                {teamMembers.slice(0, 5).map(member => (
-                  <Avatar key={member.id} className="w-6 h-6 border-2 border-white">
-                    <AvatarFallback className="bg-blue-100 text-blue-600 text-xs">
-                      {member.name.charAt(0)}
-                    </AvatarFallback>
-                  </Avatar>
-                ))}
-                {teamMembers.length > 5 && (
-                  <div className="w-6 h-6 bg-gray-100 rounded-full border-2 border-white flex items-center justify-center">
-                    <span className="text-xs text-gray-600">+{teamMembers.length - 5}</span>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="flex items-center gap-2 cursor-help">
+                    <span className="text-sm">팀원: {teamMembers.length}명</span>
+                    <div className="flex -space-x-1">
+                      {teamMembers.slice(0, 5).map(member => (
+                        <Avatar key={member.id} className="w-6 h-6 border-2 border-white">
+                          <AvatarFallback className="bg-blue-100 text-blue-600 text-xs">
+                            {member.name.charAt(0)}
+                          </AvatarFallback>
+                        </Avatar>
+                      ))}
+                      {teamMembers.length > 5 && (
+                        <div className="w-6 h-6 bg-gray-100 rounded-full border-2 border-white flex items-center justify-center">
+                          <span className="text-xs text-gray-600">+{teamMembers.length - 5}</span>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                )}
-              </div>
-            </div>
+                </TooltipTrigger>
+                <TooltipContent className="max-w-xs">
+                  <div className="space-y-1 text-sm">
+                    <p className="font-semibold">프로젝트 멤버 ({teamMembers.length}명)</p>
+                    {teamMembers.length > 0 ? (
+                      teamMembers.map(member => (
+                        <p key={member.id}>
+                          • {member.name} <span className="text-xs text-gray-500">({member.email})</span>
+                        </p>
+                      ))
+                    ) : (
+                      <p>멤버가 없습니다.</p>
+                    )}
+                  </div>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
             <div className="flex items-center gap-2">
               <div className="text-sm">
                 <span className="font-medium">프로젝트 진행률: {progress.completion}%</span>

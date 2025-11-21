@@ -101,7 +101,10 @@ export default function TaskDetail({ taskId, onBack, onTaskUpdated }: TaskDetail
   const loadTaskData = async () => {
     try {
       setLoading(true);
-      const response = await api.get(`/tasks/${taskId}`);
+      // 태스크 상세 조회 시에도 읽기 권한 체크를 위해 userId 전달
+      const response = await api.get(`/tasks/${taskId}`, {
+        params: { userId: user?.id }
+      });
       const taskData = response.data;
       
       // 백엔드 상태를 프론트엔드 형식으로 변환

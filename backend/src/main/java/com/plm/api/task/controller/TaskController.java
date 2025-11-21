@@ -30,17 +30,31 @@ public class TaskController {
         return ResponseEntity.ok(tasks);
     }
     
-    // 태스크 상세 조회
+    // 태스크 상세 조회 (ADMIN 또는 해당 프로젝트 멤버만 접근 가능)
     @GetMapping("/tasks/{id}")
-    public ResponseEntity<TaskDto> getTaskById(@PathVariable Long id) {
+    public ResponseEntity<TaskDto> getTaskById(
+            @PathVariable Long id,
+            @RequestParam Long userId) {
+        // ADMIN이 아니고, 해당 태스크가 속한 프로젝트 멤버도 아니라면 접근 불가
+        if (!authorizationService.isAdmin(userId) && !authorizationService.canAccessTask(userId, id)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
+        
         Optional<TaskDto> task = taskService.getTaskById(id);
         return task.map(ResponseEntity::ok)
                   .orElse(ResponseEntity.notFound().build());
     }
     
-    // 프로젝트별 태스크 조회
+    // 프로젝트별 태스크 조회 (ADMIN 또는 해당 프로젝트 멤버만 접근 가능)
     @GetMapping("/projects/{projectId}/tasks")
-    public ResponseEntity<List<TaskDto>> getTasksByProjectId(@PathVariable Long projectId) {
+    public ResponseEntity<List<TaskDto>> getTasksByProjectId(
+            @PathVariable Long projectId,
+            @RequestParam Long userId) {
+        // ADMIN이 아니고, 프로젝트 멤버도 아니라면 접근 불가
+        if (!authorizationService.isAdmin(userId) && !authorizationService.isProjectMember(userId, projectId)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
+        
         List<TaskDto> tasks = taskService.getTasksByProjectId(projectId);
         return ResponseEntity.ok(tasks);
     }
