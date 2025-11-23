@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { ProjectProvider, useProjects } from './contexts/ProjectContext';
 import { useAuth } from './contexts/AuthContext';
+import { useSessionKeepAlive } from './hooks/useSessionKeepAlive';
 import ProjectSidebar from './components/ProjectSidebar';
 import ProjectBoard from './components/ProjectBoard';
 import ProjectDashboard from './components/ProjectDashboard';
@@ -12,6 +13,10 @@ import TeamManagement from './components/TeamManagement';
 
 function ProjectApp() {
   const { user } = useAuth(); // AuthContext 사용
+  
+  // 세션 유지 및 활동 감지
+  useSessionKeepAlive();
+  
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [showDashboard, setShowDashboard] = useState(true);
   const [showUserProfile, setShowUserProfile] = useState(false);

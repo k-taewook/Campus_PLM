@@ -32,6 +32,25 @@ api.interceptors.response.use(
   },
   (error) => {
     console.error('API Error:', error.response?.status, error.config?.url, error.message);
+    
+    // 401 Unauthorized: 세션 만료 또는 인증 실패
+    if (error.response?.status === 401) {
+      // 로그인 페이지가 아닌 경우만 처리
+      if (!window.location.pathname.includes('/login')) {
+        // localStorage 정리
+        localStorage.removeItem('user');
+        
+        // 세션 만료 알림
+        alert('세션이 만료되었습니다. 다시 로그인해주세요.');
+        
+        // 로그인 페이지로 리다이렉트
+        window.location.href = '/login';
+        
+        // 무한 대기 Promise 반환하여 이후 코드 실행 차단
+        return new Promise(() => {});
+      }
+    }
+    
     return Promise.reject(error);
   }
 );
