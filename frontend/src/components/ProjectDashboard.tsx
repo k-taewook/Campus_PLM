@@ -155,7 +155,7 @@ export default function ProjectDashboard({ onProjectSelect, onCreateProject }: P
       description: p.description || '',
       status: p.status.toLowerCase().replace('_', '-') as any,
       type: 'software' as const,
-      leadId: p.managerId || (currentUser?.id || '1'),
+      leadId: p.managerId ? p.managerId.toString() : (currentUser?.id || '1'),
       members: members.map(m => ({
         id: m.userId.toString(),
         name: m.userFullName || m.username,

@@ -28,6 +28,10 @@ public class AuthService {
      * 로그인 처리
      */
     public LoginResponse login(LoginRequest request, HttpSession session) {
+        System.out.println("=== 로그인 시도 ===");
+        System.out.println("Email: " + request.getEmail());
+        System.out.println("세션 ID: " + session.getId());
+        
         // 이메일로 사용자 조회
         User user = userRepository.findByEmail(request.getEmail())
                 .orElseThrow(() -> new RuntimeException("이메일 또는 비밀번호가 일치하지 않습니다."));
@@ -50,6 +54,9 @@ public class AuthService {
         session.setAttribute("userId", user.getId());
         session.setAttribute("userEmail", user.getEmail());
         session.setAttribute("userRole", user.getRole().name());
+        
+        System.out.println("로그인 성공 - User ID: " + user.getId());
+        System.out.println("세션에 저장된 userId: " + session.getAttribute("userId"));
         
         return new LoginResponse(
             user.getId(),

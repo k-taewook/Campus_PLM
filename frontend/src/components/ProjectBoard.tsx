@@ -927,9 +927,6 @@ function EditProjectDialogSimple({ projectId, onClose, onProjectUpdated }: {
   };
 
   const handleTeamMemberToggle = (userId: string) => {
-    // 현재 사용자는 해제할 수 없음
-    if (userId === currentUser?.id) return;
-    
     setFormData(prev => ({
       ...prev,
       teamMembers: prev.teamMembers.includes(userId)
@@ -946,13 +943,9 @@ function EditProjectDialogSimple({ projectId, onClose, onProjectUpdated }: {
     return upper === 'ADMIN' || upper === 'LEADER';
   });
 
-  // 검색어에 따라 사용자 필터링 (프로젝트 리드로 선택된 사람 제외)
+  // 검색어에 따라 사용자 필터링 (프로젝트 리드도 포함)
   const filteredUsers = contextUsers.filter(user => {
-    // 프로젝트 리드로 선택된 사람은 제외
-    if (formData.managerId && user.id === formData.managerId) {
-      return false;
-    }
-    // 검색어 필터링
+    // 검색어 필터링만 수행
     return user.name.toLowerCase().includes(memberSearchQuery.toLowerCase()) ||
       user.email.toLowerCase().includes(memberSearchQuery.toLowerCase());
   });
@@ -1167,14 +1160,20 @@ function EditProjectDialogSimple({ projectId, onClose, onProjectUpdated }: {
                     filteredUsers.map(user => {
                     const isSelected = formData.teamMembers.includes(user.id);
                     const isCurrentUser = user.id === currentUser?.id;
+                    const isLead = formData.managerId === user.id;
                     
                     return (
                       <div key={user.id} className="flex items-center space-x-3 hover:bg-gray-50 p-1 rounded">
                         <Checkbox 
                           id={user.id}
-                          checked={isSelected}
-                          onCheckedChange={() => handleTeamMemberToggle(user.id)}
-                          disabled={isCurrentUser} // Can't unselect yourself
+                          checked={isLead || isSelected}
+                          onCheckedChange={() => {
+                            if (isLead) {
+                              return; // 프로젝트 리드는 체크 해제 불가
+                            }
+                            handleTeamMemberToggle(user.id);
+                          }}
+                          disabled={isLead} // 프로젝트 리드는 체크박스 비활성화
                         />
                         <label 
                           htmlFor={user.id}
@@ -1189,6 +1188,7 @@ function EditProjectDialogSimple({ projectId, onClose, onProjectUpdated }: {
                             <p className="text-sm font-medium truncate">
                               {user.name}
                               {isCurrentUser && <span className="text-gray-500 ml-1">(나)</span>}
+                              {isLead && <span className="text-purple-600 ml-1">(리드)</span>}
                             </p>
                             <p className="text-xs text-gray-500 truncate">{user.email}</p>
                           </div>

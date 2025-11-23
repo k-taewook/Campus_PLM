@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import axios from 'axios';
+import api from '../services/api';
 
 interface User {
   id: number;
@@ -28,8 +28,6 @@ interface AuthContextType {
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
-
-const API_BASE_URL = 'http://localhost:8080/api';
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
@@ -68,12 +66,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const login = async (email: string, password: string) => {
     try {
-      const response = await axios.post(`${API_BASE_URL}/users/auth/login`, {
+      const response = await api.post('/auth/login', {
         email,
         password,
       });
 
-      const userData = response.data.user;
+      // 백엔드는 LoginResponse를 직접 반환 (user 래핑 없음)
+      const userData = {
+        id: response.data.id,
+        email: response.data.email,
+        username: response.data.username,
+        fullName: response.data.fullName,
+        role: response.data.role,
+        status: 'ACTIVE' as const,
+      };
       setUser(userData);
       localStorage.setItem('user', JSON.stringify(userData));
     } catch (error: any) {
@@ -86,7 +92,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const register = async (email: string, password: string, fullName: string) => {
     try {
-      const response = await axios.post(`${API_BASE_URL}/users/auth/register`, {
+      const response = await api.post('/auth/register', {
         email,
         password,
         fullName,

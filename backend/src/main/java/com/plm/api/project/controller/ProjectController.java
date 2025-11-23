@@ -173,19 +173,34 @@ public class ProjectController {
             @PathVariable Long userId,
             HttpSession session) {
         try {
+            System.out.println("=== 멤버 제거 요청 ===");
+            System.out.println("프로젝트 ID: " + projectId);
+            System.out.println("제거할 사용자 ID: " + userId);
+            System.out.println("세션 ID: " + session.getId());
+            
             // 권한 확인: ADMIN 또는 프로젝트 리더만 멤버 제거 가능
             Long currentUserId = (Long) session.getAttribute("userId");
+            System.out.println("현재 사용자 ID (세션): " + currentUserId);
+            
             if (currentUserId == null) {
+                System.err.println("세션에 userId가 없음 - 인증 실패");
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
             }
             
-            if (!authorizationService.canManageProject(currentUserId, projectId)) {
+            boolean canManage = authorizationService.canManageProject(currentUserId, projectId);
+            System.out.println("관리 권한: " + canManage);
+            
+            if (!canManage) {
+                System.err.println("권한 없음");
                 return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
             }
             
             projectService.removeProjectMember(projectId, userId);
+            System.out.println("멤버 제거 성공");
             return ResponseEntity.noContent().build();
         } catch (RuntimeException e) {
+            System.err.println("멤버 제거 실패: " + e.getMessage());
+            e.printStackTrace();
             return ResponseEntity.notFound().build();
         }
     }
