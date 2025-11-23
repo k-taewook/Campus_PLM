@@ -12,7 +12,7 @@ public class ProjectDto {
     private ProjectStatus status;
     private LocalDateTime startDate;
     private LocalDateTime endDate;
-    private String managerId;
+    private Long managerId;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
     private Long totalTasks;
@@ -37,7 +37,7 @@ public class ProjectDto {
     
     // 전체 생성자
     public ProjectDto(Long id, String name, String description, ProjectStatus status, 
-                     LocalDateTime startDate, LocalDateTime endDate, String managerId,
+                     LocalDateTime startDate, LocalDateTime endDate, Long managerId,
                      LocalDateTime createdAt, LocalDateTime updatedAt) {
         this.id = id;
         this.name = name;
@@ -99,11 +99,11 @@ public class ProjectDto {
         this.endDate = endDate;
     }
     
-    public String getManagerId() {
+    public Long getManagerId() {
         return managerId;
     }
     
-    public void setManagerId(String managerId) {
+    public void setManagerId(Long managerId) {
         this.managerId = managerId;
     }
     

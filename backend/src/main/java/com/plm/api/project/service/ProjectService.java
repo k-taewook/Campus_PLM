@@ -108,7 +108,7 @@ public class ProjectService {
     }
     
     // 매니저별 프로젝트 조회
-    public List<ProjectDto> getProjectsByManager(String managerId) {
+    public List<ProjectDto> getProjectsByManager(Long managerId) {
         List<Project> projects = projectRepository.findByManagerId(managerId);
         return projects.stream()
                 .map(this::convertToDto)

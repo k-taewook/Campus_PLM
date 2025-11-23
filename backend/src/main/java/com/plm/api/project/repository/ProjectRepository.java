@@ -16,7 +16,7 @@ public interface ProjectRepository extends JpaRepository<Project, Long> {
     List<Project> findByStatus(ProjectStatus status);
     
     // 매니저별 프로젝트 조회
-    List<Project> findByManagerId(String managerId);
+    List<Project> findByManagerId(Long managerId);
     
     // 이름으로 프로젝트 검색 (부분 검색)
     List<Project> findByNameContainingIgnoreCase(String name);

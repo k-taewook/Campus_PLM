@@ -194,7 +194,7 @@ public class DataLoader implements CommandLineRunner {
         // ========== 프로젝트 생성 ==========
         // 샘플 프로젝트 1: PLM 시스템 개발
         Project project1 = new Project("PLM 시스템 개발", "제품 생명주기 관리 시스템 개발 프로젝트", 
-                                     ProjectStatus.ACTIVE, leader1 != null ? leader1.getId().toString() : "1");
+                                     ProjectStatus.ACTIVE, leader1 != null ? leader1.getId() : 1L);
         project1.setStartDate(LocalDateTime.now().minusDays(30));
         project1.setEndDate(LocalDateTime.now().plusDays(60));
         project1 = projectRepository.save(project1);
@@ -234,7 +234,7 @@ public class DataLoader implements CommandLineRunner {
         
         // 샘플 프로젝트 2: 모바일 앱 리뉴얼
         Project project2 = new Project("모바일 앱 리뉴얼", "기존 모바일 앱의 UI/UX 개선 프로젝트", 
-                                     ProjectStatus.PLANNING, leader2 != null ? leader2.getId().toString() : "2");
+                                     ProjectStatus.PLANNING, leader2 != null ? leader2.getId() : 2L);
         project2.setStartDate(LocalDateTime.now().plusDays(7));
         project2.setEndDate(LocalDateTime.now().plusDays(90));
         project2 = projectRepository.save(project2);
@@ -266,7 +266,7 @@ public class DataLoader implements CommandLineRunner {
         
         // 샘플 프로젝트 3: 데이터베이스 최적화
         Project project3 = new Project("데이터베이스 최적화", "성능 개선을 위한 데이터베이스 최적화", 
-                                     ProjectStatus.COMPLETED, leader1 != null ? leader1.getId().toString() : "1");
+                                     ProjectStatus.COMPLETED, leader1 != null ? leader1.getId() : 1L);
         project3.setStartDate(LocalDateTime.now().minusDays(60));
         project3.setEndDate(LocalDateTime.now().minusDays(10));
         project3 = projectRepository.save(project3);

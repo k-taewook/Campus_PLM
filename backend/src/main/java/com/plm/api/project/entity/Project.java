@@ -30,8 +30,8 @@ public class Project {
     @Column(name = "end_date")
     private LocalDateTime endDate;
     
-    @Column(name = "manager_id")
-    private String managerId; // 로그인 기능 완성 후 User 엔티티로 변경 예정
+    @Column(name = "manager_id", nullable = false)
+    private Long managerId; // 프로젝트 리더의 User ID
     
     @Column(name = "created_at")
     private LocalDateTime createdAt;
@@ -52,7 +52,7 @@ public class Project {
     }
     
     // 생성자
-    public Project(String name, String description, ProjectStatus status, String managerId) {
+    public Project(String name, String description, ProjectStatus status, Long managerId) {
         this();
         this.name = name;
         this.description = description;
@@ -109,11 +109,11 @@ public class Project {
         this.endDate = endDate;
     }
     
-    public String getManagerId() {
+    public Long getManagerId() {
         return managerId;
     }
     
-    public void setManagerId(String managerId) {
+    public void setManagerId(Long managerId) {
         this.managerId = managerId;
     }
     

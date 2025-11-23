@@ -43,7 +43,7 @@ public class AuthorizationService {
             return false;
         }
         
-        return project.get().getManagerId().equals(userId.toString());
+        return project.get().getManagerId().equals(userId);
     }
     
     /**
