@@ -110,16 +110,30 @@ public class TaskController {
                          .orElse(ResponseEntity.notFound().build());
     }
     
-    // 태스크 부분 수정 (PATCH) (ADMIN 또는 프로젝트 리더만 가능)
+    // 태스크 부분 수정 (PATCH) - 상태/진행률은 담당자도 가능, 나머지는 프로젝트 리더만 가능
     @PatchMapping("/tasks/{id}")
     public ResponseEntity<?> partialUpdateTask(
             @PathVariable Long id, 
             @RequestBody TaskDto taskDto,
             @RequestParam Long userId) {
-        // 권한 체크: ADMIN 또는 프로젝트 리더
-        if (!authorizationService.canModifyTask(userId, id)) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                .body("태스크를 수정할 권한이 없습니다.");
+        // 상태(status) 또는 진행률(progress)만 변경하는 경우 담당자도 가능
+        boolean isStatusOrProgressUpdate = taskDto.getStatus() != null || taskDto.getProgress() != null;
+        boolean isOtherFieldUpdate = taskDto.getTitle() != null || taskDto.getDescription() != null || 
+                                     taskDto.getAssigneeId() != null || taskDto.getPriority() != null ||
+                                     taskDto.getStartDate() != null || taskDto.getDueDate() != null;
+        
+        if (isStatusOrProgressUpdate && !isOtherFieldUpdate) {
+            // 상태/진행률만 변경: ADMIN, 프로젝트 리더, 또는 담당자
+            if (!authorizationService.canChangeTaskStatus(userId, id)) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body("태스크 상태를 변경할 권한이 없습니다.");
+            }
+        } else {
+            // 다른 필드 변경: ADMIN 또는 프로젝트 리더만 가능
+            if (!authorizationService.canModifyTask(userId, id)) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body("태스크를 수정할 권한이 없습니다.");
+            }
         }
         
         Optional<TaskDto> updatedTask = taskService.updateTask(id, taskDto);
@@ -127,14 +141,14 @@ public class TaskController {
                          .orElse(ResponseEntity.notFound().build());
     }
     
-    // 태스크 상태 변경 (ADMIN 또는 프로젝트 리더만 가능)
+    // 태스크 상태 변경 (ADMIN, 프로젝트 리더, 또는 담당자 가능)
     @PutMapping("/tasks/{id}/status")
     public ResponseEntity<?> updateTaskStatus(
             @PathVariable Long id, 
             @RequestBody TaskStatusUpdateRequest request,
             @RequestParam Long userId) {
-        // 권한 체크: ADMIN 또는 프로젝트 리더
-        if (!authorizationService.canModifyTask(userId, id)) {
+        // 권한 체크: ADMIN, 프로젝트 리더, 또는 담당자
+        if (!authorizationService.canChangeTaskStatus(userId, id)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
                 .body("태스크 상태를 변경할 권한이 없습니다.");
         }

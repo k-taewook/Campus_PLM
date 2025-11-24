@@ -56,6 +56,16 @@ export default function CreateProjectDialog({ open, onOpenChange, onProjectCreat
     
     if (!formData.name.trim() || !authUser) return;
 
+    // 날짜 유효성 검사
+    if (formData.startDate && formData.endDate) {
+      const startDate = new Date(formData.startDate);
+      const endDate = new Date(formData.endDate);
+      if (startDate > endDate) {
+        alert('예상 종료일은 시작일 이후여야 합니다.');
+        return;
+      }
+    }
+
     setIsSubmitting(true);
     setNameError('');
 
@@ -343,7 +353,6 @@ export default function CreateProjectDialog({ open, onOpenChange, onProjectCreat
                 type="date"
                 value={formData.endDate}
                 onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
-                min={formData.startDate || undefined}
               />
             </div>
           </div>

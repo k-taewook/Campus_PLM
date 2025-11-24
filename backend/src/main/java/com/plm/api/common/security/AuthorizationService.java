@@ -91,6 +91,48 @@ public class AuthorizationService {
     }
     
     /**
+     * 사용자가 태스크 상태를 변경할 수 있는지 확인 (ADMIN, 프로젝트 리더, 또는 담당자)
+     */
+    public boolean canChangeTaskStatus(Long userId, Long taskId) {
+        Optional<User> user = userRepository.findById(userId);
+        if (user.isEmpty()) {
+            return false;
+        }
+        
+        // ADMIN은 모든 권한
+        if (user.get().getRole() == UserRole.ADMIN) {
+            return true;
+        }
+        
+        Optional<Task> taskOpt = taskRepository.findById(taskId);
+        if (taskOpt.isEmpty()) {
+            return false;
+        }
+        
+        Task task = taskOpt.get();
+        Long projectId = task.getProject().getId();
+        
+        // 프로젝트 리더 확인
+        if (isProjectLeader(userId, projectId)) {
+            return true;
+        }
+        
+        // 담당자 확인
+        String assigneeId = task.getAssigneeId();
+        if (assigneeId != null && !assigneeId.trim().isEmpty()) {
+            String[] assigneeIds = assigneeId.split(",");
+            String userIdStr = userId.toString();
+            for (String id : assigneeIds) {
+                if (id.trim().equals(userIdStr)) {
+                    return true;
+                }
+            }
+        }
+        
+        return false;
+    }
+    
+    /**
      * 사용자가 프로젝트를 관리할 수 있는지 확인 (ADMIN 또는 프로젝트 리더)
      */
     public boolean canManageProject(Long userId, Long projectId) {

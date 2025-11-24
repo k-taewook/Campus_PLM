@@ -116,7 +116,7 @@ export default function EditProjectDialog({
       }
 
       if (formData.startDate && formData.endDate && formData.startDate > formData.endDate) {
-        toast.error('시작일은 종료일보다 이전이어야 합니다.');
+        alert('예상 종료일은 시작일 이후여야 합니다.');
         setIsLoading(false);
         return;
       }

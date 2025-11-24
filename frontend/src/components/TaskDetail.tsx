@@ -56,7 +56,7 @@ export default function TaskDetail({ taskId, onBack, onTaskUpdated }: TaskDetail
     canEditTask
   } = useProjects();
 
-  const { user, canModifyTask, isAdmin, isLeader } = useAuth();
+  const { user, canModifyTask, isAdmin, isLeader, isTaskAssignee } = useAuth();
 
   const [task, setTask] = useState<any>(null);
   const [project, setProject] = useState<any>(null);
@@ -963,7 +963,7 @@ export default function TaskDetail({ taskId, onBack, onTaskUpdated }: TaskDetail
                       <CardTitle className="text-xl">{task.title}</CardTitle>
                     )}
                     <div className="flex items-center gap-2 mt-2">
-                      {project && canModifyTask(project.managerId) ? (
+                      {project && (canModifyTask(project.managerId) || isTaskAssignee(task.assigneeIds)) ? (
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button variant="outline" size="sm" className={`${getStatusColor(task.status)} border-0`}>
@@ -1014,7 +1014,7 @@ export default function TaskDetail({ taskId, onBack, onTaskUpdated }: TaskDetail
                   </div>
                   
                   {/* Quick Actions - 상태별 빠른 액션 버튼 */}
-                  {project && canModifyTask(project.managerId) && (
+                  {project && (canModifyTask(project.managerId) || isTaskAssignee(task.assigneeIds)) && (
                     <div className="flex gap-2 items-center flex-wrap">
                       {/* todo 상태일 때 */}
                       {task.status?.toLowerCase().trim() === 'todo' && (
@@ -1088,15 +1088,17 @@ export default function TaskDetail({ taskId, onBack, onTaskUpdated }: TaskDetail
                         </Button>
                       )}
                       
-                      {/* 삭제 버튼 */}
-                      <Button 
-                        size="sm" 
-                        variant="destructive"
-                        onClick={() => setShowDeleteConfirm(true)}
-                      >
-                        <Trash2 className="w-3 h-3 mr-1" />
-                        삭제
-                      </Button>
+                      {/* 삭제 버튼 - 프로젝트 관리자만 가능 */}
+                      {canModifyTask(project.managerId) && (
+                        <Button 
+                          size="sm" 
+                          variant="destructive"
+                          onClick={() => setShowDeleteConfirm(true)}
+                        >
+                          <Trash2 className="w-3 h-3 mr-1" />
+                          삭제
+                        </Button>
+                      )}
                     </div>
                   )}
                 </div>
@@ -1136,7 +1138,7 @@ export default function TaskDetail({ taskId, onBack, onTaskUpdated }: TaskDetail
                   <CardHeader className="pb-3">
                     <div className="flex items-center justify-between">
                       <CardTitle className="text-base">체크리스트</CardTitle>
-                      {project && canModifyTask(project.managerId) && (
+                      {project && (canModifyTask(project.managerId) || isTaskAssignee(task.assigneeIds)) && (
                         <Button 
                           size="sm" 
                           variant="ghost"
@@ -1156,8 +1158,8 @@ export default function TaskDetail({ taskId, onBack, onTaskUpdated }: TaskDetail
                           // 체크리스트 삭제 권한 확인
                           const canDeleteChecklistItem = user && (
                             isAdmin() || // ADMIN은 모든 항목 삭제 가능
-                            (isLeader() && project && canModifyTask(project.managerId)) || // LEADER는 자신의 프로젝트에서 모든 항목 삭제 가능
-                            item.creatorId === user.id.toString() // 본인이 만든 항목
+                            (isLeader() && project && canModifyTask(project.managerId)) || // LEADER는 자신이 관리하는 프로젝트에서 모든 항목 삭제 가능
+                            (isTaskAssignee(task.assigneeIds) && item.creatorId === user.id.toString()) // 담당자는 본인이 만든 항목 삭제 가능 (LEADER/MEMBER 공통)
                           );
                           
                           return (
@@ -1243,7 +1245,7 @@ export default function TaskDetail({ taskId, onBack, onTaskUpdated }: TaskDetail
                       </span>
                     )}
                   </div>
-                  {project && canModifyTask(project.managerId) && (
+                  {project && (canModifyTask(project.managerId) || isTaskAssignee(task.assigneeIds)) && (
                     <div className="flex gap-2">
                       {!isFileEditMode ? (
                         <>
@@ -1329,8 +1331,8 @@ export default function TaskDetail({ taskId, onBack, onTaskUpdated }: TaskDetail
                   // 파일 삭제 권한 확인
                   const canDeleteFile = user && (
                     isAdmin() || // ADMIN은 모든 파일 삭제 가능
-                    (isLeader() && project && canModifyTask(project.managerId)) || // LEADER는 자신의 프로젝트 파일 삭제 가능
-                    attachment.uploadedBy === user.id.toString() // 본인이 업로드한 파일
+                    (isLeader() && project && canModifyTask(project.managerId)) || // LEADER는 자신이 관리하는 프로젝트 파일 삭제 가능
+                    (isTaskAssignee(task.assigneeIds) && attachment.uploadedBy === user.id.toString()) // 담당자는 본인이 업로드한 파일 삭제 가능 (LEADER/MEMBER 공통)
                   );
                   
                   return (
@@ -1741,20 +1743,6 @@ export default function TaskDetail({ taskId, onBack, onTaskUpdated }: TaskDetail
                     </div>
                   )}
                 </div>
-
-                <div>
-                  <Label>레이블</Label>
-                  <div className="mt-1 flex flex-wrap gap-1">
-                    {task.labels.map((label: any) => (
-                      <Badge key={label} variant="outline" className="text-xs">
-                        {label}
-                      </Badge>
-                    ))}
-                    {task.labels.length === 0 && (
-                      <span className="text-sm text-gray-500">레이블 없음</span>
-                    )}
-                  </div>
-                </div>
               </CardContent>
             </Card>
 
@@ -1823,6 +1811,7 @@ export default function TaskDetail({ taskId, onBack, onTaskUpdated }: TaskDetail
             status: task.status,
             priority: task.priority,
             assigneeId: task.assigneeIds && task.assigneeIds.length > 0 ? task.assigneeIds.join(',') : undefined,
+            startDate: task.startDate,
             dueDate: task.dueDate
           }}
           onTaskUpdated={() => {

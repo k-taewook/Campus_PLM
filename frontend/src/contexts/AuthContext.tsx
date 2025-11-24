@@ -25,6 +25,7 @@ interface AuthContextType {
   isMember: () => boolean;
   canManageProject: (projectManagerId: string) => boolean;
   canModifyTask: (projectManagerId: string) => boolean;
+  isTaskAssignee: (assigneeIds: string[]) => boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -62,6 +63,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // 태스크 수정 권한 체크 (ADMIN 또는 해당 프로젝트의 리더)
   const canModifyTask = (projectManagerId: string) => {
     return canManageProject(projectManagerId);
+  };
+  
+  // 태스크 담당자인지 확인
+  const isTaskAssignee = (assigneeIds: string[]) => {
+    if (!user) return false;
+    return assigneeIds.includes(user.id.toString());
   };
 
   const login = async (email: string, password: string) => {
@@ -129,6 +136,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isMember,
         canManageProject,
         canModifyTask,
+        isTaskAssignee,
       }}
     >
       {children}

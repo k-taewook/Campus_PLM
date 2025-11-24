@@ -139,6 +139,33 @@ public class TaskService {
                 .collect(Collectors.toList());
     }
     
+    // 사용자가 태스크의 assignee인지 확인
+    public boolean isUserAssignedToTask(Long taskId, Long userId) {
+        Optional<Task> taskOpt = taskRepository.findById(taskId);
+        if (!taskOpt.isPresent()) {
+            return false;
+        }
+        
+        Task task = taskOpt.get();
+        String assigneeId = task.getAssigneeId();
+        
+        if (assigneeId == null || assigneeId.trim().isEmpty()) {
+            return false;
+        }
+        
+        // assigneeId가 콤마로 구분된 여러 ID를 포함할 수 있음
+        String[] assigneeIds = assigneeId.split(",");
+        String userIdStr = userId.toString();
+        
+        for (String id : assigneeIds) {
+            if (id.trim().equals(userIdStr)) {
+                return true;
+            }
+        }
+        
+        return false;
+    }
+    
     // Entity를 DTO로 변환
     private TaskDto convertToDto(Task task) {
         return new TaskDto(task);

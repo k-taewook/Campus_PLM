@@ -79,6 +79,16 @@ export default function CreateTaskDialog({ open, onOpenChange, projectId, onTask
       return;
     }
 
+    // 날짜 유효성 검사
+    if (formData.startDate && formData.dueDate) {
+      const startDate = new Date(formData.startDate);
+      const dueDate = new Date(formData.dueDate);
+      if (startDate > dueDate) {
+        alert('마감일은 시작일 이후여야합니다.');
+        return;
+      }
+    }
+
     try {
       setIsSubmitting(true);
 
