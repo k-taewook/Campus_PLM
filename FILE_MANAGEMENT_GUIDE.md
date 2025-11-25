@@ -1,4 +1,4 @@
-# 📁 파일 관리 시스템 구현 완료 (v1.2.0)
+# 📁 파일 관리 시스템 구현 완료 (v1.4.0)
 
 ## 📅 구현 일자: 2025-10-31
 
@@ -400,7 +400,40 @@ project/
 1. **로컬 스토리지 사용**: 프로덕션 환경에서는 S3/Azure Blob 권장
 2. **동시 업로드 제한**: 대량 파일 업로드 시 순차 처리
 3. **썸네일 없음**: 이미지 썸네일 자동 생성 미구현
-4. **권한 체크 없음**: 현재는 모든 로그인 사용자가 모든 파일 접근 가능
+
+---
+
+## 🔐 권한 관리 (v1.4.0)
+
+### 파일 삭제 권한
+파일 삭제는 역할 기반 권한으로 제한됩니다:
+
+**ADMIN**:
+- 모든 파일 삭제 가능
+
+**LEADER (프로젝트 관리자)**:
+- 본인이 관리하는 프로젝트의 모든 파일 삭제 가능
+
+**MEMBER**:
+- 본인이 담당자로 할당된 태스크에서만
+- 본인이 업로드한 파일만 삭제 가능
+
+### 권한 체크 로직 (Frontend)
+```typescript
+// TaskDetail.tsx에서 파일 삭제 권한 확인
+const canDeleteFile = (file: FileItem) => {
+  const isAdmin = user?.role === 'ADMIN';
+  const isProjectManager = task?.project?.managerId === user?.id;
+  const isTaskAssignee = isTaskAssignee(task?.assigneeId?.split(',') || []);
+  const isUploader = file.uploaderId === user?.id;
+
+  return isAdmin || isProjectManager || (isTaskAssignee && isUploader);
+};
+```
+
+### UI 표시
+- 삭제 권한이 없는 사용자에게는 휴지통 버튼이 표시되지 않음
+- 권한이 있는 사용자만 파일 삭제 가능
 
 ---
 

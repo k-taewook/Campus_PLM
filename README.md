@@ -5,8 +5,8 @@
 기업 및 팀의 프로젝트 생명주기 전반을 관리하는 현대적인 풀스택 웹 애플리케이션입니다.  
 **Feature-based Architecture**로 설계되어 팀 협업과 확장성에 최적화되어 있습니다.
 
-**📅 최종 업데이트**: 2025년 11월 11일  
-**🔖 현재 버전**: v1.3.0
+**📅 최종 업데이트**: 2025년 11월 25일  
+**🔖 현재 버전**: v1.4.0
 
 ---
 
@@ -343,6 +343,65 @@ files (id, original_name, stored_name, file_path, file_size, mime_type, file_typ
 - [ ] 시계열 데이터 (일/주/월별 추이)
 - [ ] 최근 활동 내역
 - [ ] 팀별 생산성 지표
+
+#### 10. 권한 관리 시스템 (Authorization System) ✅ **완료**
+**Backend 구현**: AuthorizationService 완성  
+**Frontend 구현**: AuthContext 권한 헬퍼 함수 완성  
+**완료된 기능**:
+- [x] 역할 기반 접근 제어 (ADMIN, LEADER, MEMBER)
+- [x] 프로젝트별 권한 관리 (프로젝트 관리자 기반)
+- [x] 태스크 권한 관리 (담당자 및 프로젝트 관리자)
+- [x] 체크리스트 권한 (작성자만 수정/삭제)
+- [x] 첨부파일 권한 (업로더만 삭제)
+- [x] 태스크 상태 변경 권한 (담당자, 관리자, ADMIN)
+- [x] 세분화된 권한 체크 (전체 수정 vs 상태 변경)
+
+**권한 체계**:
+
+**ADMIN 역할**:
+- 모든 프로젝트, 태스크, 파일에 대한 전체 접근 권한
+- 사용자 관리 및 시스템 설정
+
+**LEADER 역할**:
+- 본인이 관리자로 지정된 프로젝트 전체 관리
+- 해당 프로젝트의 모든 태스크 수정/삭제
+- 프로젝트 설정 변경
+
+**MEMBER 역할**:
+- 본인이 담당자로 할당된 태스크에서만:
+  - 태스크 상태 및 진행률 변경 가능
+  - 본인이 작성한 체크리스트만 수정/삭제
+  - 본인이 업로드한 첨부파일만 삭제
+  - 댓글 작성 및 본인 댓글 수정/삭제
+
+**권한 체크 메서드** (AuthorizationService):
+```java
+// 태스크 전체 수정 권한 (프로젝트 관리자 또는 ADMIN만)
+canModifyTask(Long userId, Long taskId)
+
+// 태스크 상태 변경 권한 (담당자, 프로젝트 관리자, ADMIN)
+canChangeTaskStatus(Long userId, Long taskId)
+
+// 프로젝트 수정 권한
+canModifyProject(Long userId, Long projectId)
+```
+
+**Frontend 권한 헬퍼** (AuthContext):
+```typescript
+// 현재 사용자가 태스크 담당자인지 확인
+isTaskAssignee(assigneeIds: string[]): boolean
+
+// 체크리스트 삭제 권한
+canDeleteChecklistItem = isAdmin || isProjectManager || 
+  (isTaskAssignee && item.createdBy === user.id)
+
+// 파일 삭제 권한
+canDeleteFile = isAdmin || isProjectManager || 
+  (isTaskAssignee && file.uploaderId === user.id)
+
+// 태스크 상태 변경 권한
+canChangeStatus = isAdmin || isProjectManager || isTaskAssignee
+```
 
 ---
 

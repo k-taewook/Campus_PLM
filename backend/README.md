@@ -1,7 +1,7 @@
 # PLM Service Backend
 
 **📅 최종 업데이트**: 2025년 11월 11일  
-**🔖 현재 버전**: v1.3.0
+**🔖 현재 버전**: v1.4.0
 
 ## 📋 프로젝트 개요
 PLM (Project Lifecycle Management) 시스템의 백엔드 서버입니다.
@@ -295,9 +295,21 @@ main
 - [ ] Repository Test
 - [ ] Security Test
 
-## � 버전 히스토리
+## 📋 버전 히스토리
 
-### v1.3.0 (2025-11-11) ⭐ LATEST
+### v1.4.0 (2025-11-12) ⭐ LATEST
+- ✅ **권한 관리 시스템 구현 완료**
+  - AuthorizationService 추가 (권한 체크 중앙화)
+  - 역할 기반 접근 제어 (ADMIN, LEADER, MEMBER)
+  - 태스크 상태 변경 권한 (canChangeTaskStatus)
+  - 태스크 전체 수정 권한 (canModifyTask)
+  - 체크리스트/파일 작성자 권한 검증
+  - TaskService: isUserAssignedToTask() 메서드 추가
+- ✅ **날짜 검증 강화**
+  - 프로젝트/태스크 시작일-종료일 검증
+  - 커스텀 검증 메시지 추가
+
+### v1.3.0 (2025-11-11)
 - ✅ 프론트엔드와 동기화된 안정 버전
 - ✅ 태스크 관리 API 안정화
 - ✅ 파일 관리 시스템 완료 (v1.2.0 기능 유지)

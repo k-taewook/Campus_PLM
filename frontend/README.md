@@ -1,7 +1,7 @@
 # PLM Service Frontend
 
-**📅 최종 업데이트**: 2025년 11월 11일  
-**🔖 현재 버전**: v1.3.0
+**📅 최종 업데이트**: 2025년 11월 12일  
+**🔖 현재 버전**: v1.4.0
 
 ## 📋 프로젝트 개요
 PLM (Project Lifecycle Management) 시스템의 프론트엔드 애플리케이션입니다.
@@ -291,7 +291,21 @@ useEffect(() => {
 
 ## 🔄 버전 히스토리
 
-### v1.3.0 (2025-11-11) ⭐ LATEST
+### v1.4.0 (2025-11-12) ⭐ LATEST
+- ✅ **권한 관리 시스템 구현**
+  - AuthContext에 isTaskAssignee() 헬퍼 함수 추가
+  - 체크리스트/파일 권한 체크 (작성자만 수정/삭제)
+  - 태스크 담당자 상태 변경 권한 추가
+  - 역할 기반 UI 표시 (ADMIN, LEADER, MEMBER)
+- ✅ **날짜 검증 강화**
+  - CreateProjectDialog/EditProjectDialog 날짜 검증
+  - CreateTaskDialog/EditTaskDialog 날짜 검증
+  - HTML5 min 속성 제거 (커스텀 검증 사용)
+- ✅ **UI 개선**
+  - 태스크 상세 페이지 라벨 기능 제거
+  - EditTaskDialog에 startDate 필드 추가
+
+### v1.3.0 (2025-11-11)
 - ✅ 대시보드 통계 로직 개선
   - "완료된 태스크" → "진행 중인 태스크" 카드로 변경
   - 할당된 태스크에서 완료된 태스크 제외
